@@ -8,6 +8,8 @@ from PIL import Image, ImageFont, ImageDraw
 import numpy as np
 import cv2
 
+import tensorflow as tf
+
 
 def normalize_filename(filename):
     return re.sub(r"[\\\/\.\#\%\$\!\@\(\)\[\]\s]+", "_", filename)
@@ -98,3 +100,50 @@ def draw_text(text, font_dict, image_size=64):
     ))
 
     return final_img
+
+
+# The following functions can be used to convert a value
+# to a type compatible with tf.Example.
+def _bytes_feature(value):
+    """Returns a bytes_list from a string / byte."""
+    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+
+
+def _float_feature(value):
+    """Returns a float_list from a float / double."""
+    return tf.train.Feature(float_list=tf.train.FloatList(value=[value]))
+
+
+def _int64_feature(value):
+    """Returns an int64_list from a bool / enum / int / uint."""
+    return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+
+
+def convert_to_tfrec(all_image_paths, all_labels, filename):
+    with tf.python_io.TFRecordWriter(filename) as tfrec_writer:
+        idx = 0
+        start_time = time.time()
+        for image_path, label in zip(all_image_paths, all_labels):
+            # image_raw = tf.read_file(image_path)
+            image_raw = open(image_path, 'rb').read()
+
+            feature = {
+                'image_raw': _bytes_feature(image_raw),
+                'label': _int64_feature(label),
+            }
+
+            example = tf.train.Example(
+                features=tf.train.Features(feature=feature))
+
+            tfrec_writer.write(example.SerializeToString())
+
+            idx += 1
+            if idx % 1000 == 0:
+                active_time = time.time() - start_time
+                avg_time = active_time / (idx)
+                remain_time = avg_time * (len(all_image_paths) - idx)
+                print(f'{idx}/{len(all_image_paths)}')
+                print(f'ACTIVE_TIME: {time_tostring(active_time)}')
+                print(f'REMAIN_TIME: {time_tostring(remain_time)}')
+                print(f'AVG_TIME: {avg_time:.4f}s')
+                print('='*32)
