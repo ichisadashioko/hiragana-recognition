@@ -147,3 +147,82 @@ def convert_to_tfrec(all_image_paths, all_labels, filename):
                 print(f'REMAIN_TIME: {time_tostring(remain_time)}')
                 print(f'AVG_TIME: {avg_time:.4f}s')
                 print('='*32)
+
+
+def load_tfrecord(filename: str):
+    tfrec_ds = tf.data.TFRecordDataset(filename)
+
+    def _parse_image_function(example_proto):
+        # Create a dictionary describing the features
+        image_feature_description = {
+            'image_raw': tf.FixedLenFeature([], tf.string),
+            'label': tf.FixedLenFeature([], tf.int64),
+        }
+        # Parse the input tf.Example proto using the dictionary above
+        return tf.parse_single_example(example_proto, image_feature_description)
+
+    ds = tfrec_ds.map(_parse_image_function)
+
+    def preprocess_image(tf_image):
+        tf_image = tf.image.decode_png(tf_image, channels=1)
+        tf_image = tf.image.resize_images(tf_image, [64, 64])
+        tf_image = tf_image / 255.0
+        return tf_image
+
+    def preprocess_image_label_tfrecord(tfrec_features):
+        image_raw = tfrec_features['image_raw']
+        label = tfrec_features['label']
+        return preprocess_image(image_raw), label
+
+    ds = ds.map(preprocess_image_label_tfrecord)
+
+    return ds
+
+
+def generic_cnn_model(prefix: str, output_classes=45):
+    model = tf.keras.Sequential([
+        tf.keras.layers.Conv2D(
+            filters=32,
+            kernel_size=16,
+            activation=tf.nn.relu,
+            name=f'{prefix}_Conv2D_1',
+            input_shape=(64, 64, 1,),
+            data_format='channels_last',
+        ),
+        tf.keras.layers.MaxPool2D(
+            pool_size=2,
+            name=f'{prefix}_MaxPool2D_1',
+        ),
+        tf.keras.layers.Dropout(
+            rate=0.4,
+            name=f'{prefix}_Dropout_1',
+        ),
+        tf.keras.layers.Conv2D(
+            filters=64,
+            kernel_size=8,
+            activation=tf.nn.relu,
+            name=f'{prefix}_Conv2D_2',
+        ),
+        tf.keras.layers.MaxPool2D(
+            pool_size=2,
+            name=f'{prefix}_MaxPool2D_2',
+        ),
+        tf.keras.layers.Dropout(
+            rate=0.2,
+            name=f'{prefix}_Dropout_2',
+        ),
+        tf.keras.layers.Flatten(
+            name=f'{prefix}_Flatten',
+        ),
+        tf.keras.layers.Dense(
+            units=64,
+            activation=tf.nn.relu,
+            name=f'{prefix}_Dense_1',
+        ),
+        tf.keras.layers.Dense(
+            units=output_classes,
+            activation=tf.nn.softmax,
+            name=f'{prefix}_Output_layer',
+        ),
+    ])
+    return model
