@@ -1,4 +1,4 @@
-export var kana_dict = {
+var kana_dict = {
     'あ': 0,
     'い': 1,
     'う': 2,
@@ -46,7 +46,7 @@ export var kana_dict = {
     'ん': 44,
 }
 
-export var label_dict = {
+var label_dict = {
     0: 'あ',
     1: 'い',
     2: 'う',
