@@ -28,7 +28,7 @@ function predict() {
         }
 
         mapped_result.sort((a, b) => { return b[1] - a[1] })
-        console.log(mapped_result)
+        // console.log(mapped_result)
 
         toast_message = ''
         for (let i = 0; i < 5; i++) {
