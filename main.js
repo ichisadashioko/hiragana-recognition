@@ -3,7 +3,7 @@
 console.log(kana_dict)
 console.log(label_dict)
 
-var model
+var model = null
 async function loadMyModel() {
     model = await tf.loadLayersModel('hiragana-tfjs-model/model.json')
 }
@@ -17,33 +17,34 @@ function predict() {
     input_image = input_image.div(255.0)
     input_image = input_image.reshape([1, 64, 64, 1])
 
-    result = model.predict(input_image)
+    if (model != null) {
+        result = model.predict(input_image)
 
-    // result = result[0]
-    // result = getArrayPrediction(result)
-    result.array().then((res) => {
-        mapped_result = []
-        for (let i = 0; i < res[0].length; i++) {
-            mapped_result.push([label_dict[i], res[0][i] * 100])
-        }
+        result.array().then((res) => {
+            mapped_result = []
+            for (let i = 0; i < res[0].length; i++) {
+                mapped_result.push([label_dict[i], res[0][i] * 100])
+            }
 
-        mapped_result.sort((a, b) => { return b[1] - a[1] })
-        // console.log(mapped_result)
+            mapped_result.sort((a, b) => { return b[1] - a[1] })
+            // console.log(mapped_result)
 
-        toast_message = ''
-        for (let i = 0; i < 5; i++) {
-            toast_message += `<div>${mapped_result[i][0]}-${mapped_result[i][1].toFixed(2)}%</div>`
-        }
-        template = `
-        <div class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="toast-body">
-                result_message_here
-            </div>
-        </div>`.replace('result_message_here', toast_message)
+            toast_message = ''
+            for (let i = 0; i < 5; i++) {
+                toast_message += `<div>${mapped_result[i][0]} - ${mapped_result[i][1].toFixed(2)}%</div>`
+            }
+            template = `
+            <div class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="toast-body">
+                    result_message_here
+                </div>
+            </div>`.replace('result_message_here', toast_message)
 
-        // template = $('#result-template').html().replace('result_message_here', toast_message)
-        $('#result-container').html(template)
-    })
+            // template = $('#result-template').html().replace('result_message_here', toast_message)
+            $('#result-container').html(template)
+        })
+    }
+
 }
 
 /**

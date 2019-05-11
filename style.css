@@ -36,4 +36,11 @@ body {
     position: absolute;
     bottom: 0;
     left: 0;
+    background-color: #222222;
+    opacity: 0.8;
+    border-radius: 5px;
+}
+
+#result-container div {
+    margin: 2px;
 }
