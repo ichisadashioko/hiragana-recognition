@@ -9,6 +9,7 @@ import numpy as np
 import tensorflow as tf
 
 import utils
+from tensorflow_utils import load_tfrecord
 import key_label_dict
 
 
@@ -19,7 +20,7 @@ if __name__ == "__main__":
     steps_per_epoch = math.ceil(image_count/batch_size)
     tfrecord_filename = 'hiragana_ds_2019-05-04_16-34-09.tfrecord'
 
-    ds = utils.load_tfrecord(tfrecord_filename)
+    ds = load_tfrecord(tfrecord_filename)
 
     ds = ds.cache()
     ds = ds.apply(tf.data.experimental.shuffle_and_repeat(
@@ -40,8 +41,8 @@ if __name__ == "__main__":
         steps_per_epoch=steps_per_epoch
     )
 
-    model_weights_filename = f'hiragana_model_weights_{utils.datetime_now()}.h5'
+    model_weights_filename = f'hiragana_model_weights_{int(time.time())}.h5'
     model.save_weights(model_weights_filename)
 
-    model_filename = f'hiragana_model_{utils.datetime_now()}.h5'
+    model_filename = f'hiragana_model_{int(time.time())}.h5'
     model.save(model_filename)

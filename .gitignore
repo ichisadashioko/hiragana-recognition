@@ -1,0 +1,9 @@
+__pycache__
+
+# ignore generated files
+*.tfrecord
+*.h5
+*.ttf
+*.csv
+*.otf
+*.json
