@@ -7,7 +7,7 @@ import math
 import numpy as np
 import pandas
 
-import utilities
+import utils
 import key_label_dict
 
 if __name__ == "__main__":
@@ -18,6 +18,6 @@ if __name__ == "__main__":
     all_labels = np_df[:, 0]
     all_image_paths = np_df[:, 1]
 
-    tfrecord_filename = f'hiragana_ds_{utilities.datetime_now()}.tfrecord'
+    tfrecord_filename = f'hiragana_ds_{utils.datetime_now()}.tfrecord'
 
-    utilities.convert_to_tfrec(all_image_paths, all_labels, tfrecord_filename)
+    utils.convert_to_tfrec(all_image_paths, all_labels, tfrecord_filename)

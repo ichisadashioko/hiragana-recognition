@@ -19,7 +19,7 @@ import tensorflow as tf
 tf.enable_eager_execution()
 
 import key_label_dict
-import utilities
+import utils
 
 pen = None
 CANVAS_WIDTH = None
@@ -211,7 +211,7 @@ if __name__ == "__main__":
     # model.summary()
     #===================  or load model_weights ===================#
     model_weights_filename = 'hiragana_model_weights_2019-05-04_17-05-26.h5'
-    model = utilities.generic_cnn_model('HRGN')
+    model = utils.generic_cnn_model('HRGN')
     model.load_weights(model_weights_filename)
     model.compile(
         optimizer='adam',

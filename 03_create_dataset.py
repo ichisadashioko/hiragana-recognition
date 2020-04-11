@@ -6,20 +6,20 @@ import math
 
 import numpy as np
 
-import utilities
+import utils
 import key_label_dict
 
 from PIL import Image, ImageFont, ImageDraw
 
 if __name__ == "__main__":
     font_folder = 'E:/programming/week-based-kanji-classifier/all_fonts'
-    font_dicts = utilities.fetch_fonts(font_folder)
+    font_dicts = utils.fetch_fonts(font_folder)
 
     kana_list = key_label_dict.key_dict.keys()
 
     cache_filename = 'image_paths.csv'
-    error_log_filename = f'kana_error_{utilities.datetime_now()}.log'
-    stats_log_filename = f'kana_log_{utilities.datetime_now()}.csv'
+    error_log_filename = f'kana_error_{utils.datetime_now()}.log'
+    stats_log_filename = f'kana_log_{utils.datetime_now()}.csv'
     save_folder = 'kana_images'
 
     with open(stats_log_filename, 'w', encoding='utf-8') as lf:
@@ -47,14 +47,14 @@ if __name__ == "__main__":
             font_size = font_dict['font_size']
             font_name = font_dict['font_name']
 
-            pil_image = utilities.draw_text(kana, font_dict)
+            pil_image = utils.draw_text(kana, font_dict)
 
             if pil_image is None:
                 # print(f'{font_name} does not support {kana}')
 
                 failed_count += 1
                 unsupported_fonts.append(font_name)
-                log_str = f'[ERROR]\t{utilities.datetime_now()}\t{font_name} does not support {kana}\n'
+                log_str = f'[ERROR]\t{utils.datetime_now()}\t{font_name} does not support {kana}\n'
                 with open(error_log_filename, 'a+', encoding='utf-8') as el:
                     el.write(log_str)
                 continue
@@ -76,7 +76,7 @@ if __name__ == "__main__":
         remain_time = avg_time * (len(kana_list) - idx - 1)
 
         print(f'{idx+1}/{len(kana_list)}')
-        print(f'ACTIVE_TIME: {utilities.time_tostring(active_time)}')
-        print(f'REMAIN_TIME: {utilities.time_tostring(remain_time)}')
+        print(f'ACTIVE_TIME: {utils.time_tostring(active_time)}')
+        print(f'REMAIN_TIME: {utils.time_tostring(remain_time)}')
         print(f'KANA_TIME: {kana_time:.2f}s')
         print(f'AVG_TIME: {avg_time:.2f}s')

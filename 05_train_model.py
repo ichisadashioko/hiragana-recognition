@@ -8,7 +8,7 @@ import numpy as np
 
 import tensorflow as tf
 
-import utilities
+import utils
 import key_label_dict
 
 
@@ -19,7 +19,7 @@ if __name__ == "__main__":
     steps_per_epoch = math.ceil(image_count/batch_size)
     tfrecord_filename = 'hiragana_ds_2019-05-04_16-34-09.tfrecord'
 
-    ds = utilities.load_tfrecord(tfrecord_filename)
+    ds = utils.load_tfrecord(tfrecord_filename)
 
     ds = ds.cache()
     ds = ds.apply(tf.data.experimental.shuffle_and_repeat(
@@ -27,7 +27,7 @@ if __name__ == "__main__":
     ))
     ds = ds.batch(batch_size).prefetch(buffer_size=AUTOTUNE)
 
-    model = utilities.generic_cnn_model('HRGN')
+    model = utils.generic_cnn_model('HRGN')
     model.compile(
         optimizer='adam',
         loss='sparse_categorical_crossentropy',
@@ -40,8 +40,8 @@ if __name__ == "__main__":
         steps_per_epoch=steps_per_epoch
     )
 
-    model_weights_filename = f'hiragana_model_weights_{utilities.datetime_now()}.h5'
+    model_weights_filename = f'hiragana_model_weights_{utils.datetime_now()}.h5'
     model.save_weights(model_weights_filename)
 
-    model_filename = f'hiragana_model_{utilities.datetime_now()}.h5'
+    model_filename = f'hiragana_model_{utils.datetime_now()}.h5'
     model.save(model_filename)
