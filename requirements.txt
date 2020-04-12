@@ -4,3 +4,5 @@ autopep8==1.5.1
 numpy==1.18.2
 fonttools==4.7.0
 tensorflow==2.1.0
+jupyter==1.0.0
+matplotlib==3.2.1

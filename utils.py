@@ -4,6 +4,7 @@ import time
 import re
 import unicodedata
 import traceback
+import warnings
 from typing import Callable
 
 from PIL import Image, ImageFont, ImageDraw
@@ -11,14 +12,14 @@ import numpy as np
 from fontTools.ttLib import TTFont
 
 DEFAULT_LABEL_FILE = 'labels.json'
-
 MODULE_IMPORT_TIME = time.time()
-
-# TODO timeit decorator to log function execution time to log
-# file to visualize it later
 
 
 def timeit(func: Callable):
+    """
+    Decorator for measuring function execution time and log to file to
+    visualize/profiling later.
+    """
 
     def wrapper(*args, **kwargs):
         ts = time.time()
@@ -48,8 +49,12 @@ def time_tostring(t):
 def is_support(font_path: str, c: str):
     # use suggestion from this answer on StackExchange to filter
     # unsupported characters (https://superuser.com/a/1452828/1043619)
+
     # TODO test if this code is working or not by rendering the
-    # actual image
+    # actual image (with some uncommon kanji)
+
+    # TODO check if the open file operation everytime too costly. If
+    # that is true, move this function logic to fetching font function
     font = TTFont(font_path)
     for cmap in font['cmap'].tables:
         if cmap.isUnicode():
@@ -59,6 +64,20 @@ def is_support(font_path: str, c: str):
 
 
 class Font:
+    """
+    Wrapper class for storing some data that we need to identify.
+
+    For example:
+
+    - the font name (not the file name)
+    - the font size (pillow's ImageFont requires to be created with font
+    size so I need to store that)
+    - the ImageFont for using with pillow's drawing API
+    - the font file path for using with `fonttools` to check if the font
+    support a specific character or not. otherwise, it may give the tofu
+    shape image.
+    """
+
     def __init__(
         self,
         name: str,
@@ -72,7 +91,14 @@ class Font:
         self.path = path
 
     def is_support(self, c):
+        # I think there is a way to using `descriptor` for class method
+        # but that will make the decorator not compatible with others
+        # function so I move the this function logic to a higher-order
+        # function.
         return is_support(self.path, c)
+
+    def __repr__(self):
+        return repr((self.name, self.size, self.path))
 
 
 @timeit
@@ -84,59 +110,91 @@ def fetch_font(font_file: str, font_size=64):
 
 
 @timeit
-def draw_text(text, font_dict, image_size=64):
+def render_image(c: str, font: Font, image_size=64):
+    pillow_font = font.font
 
-    font = font_dict['font']
-    font_size = font_dict['font_size']
-    font_name = font_dict['font_name']
+    # we create a canvas at least twice as large as the font size to
+    # prevent the character's pixel(s) from being cropped from drawing
+    # on constrained size
+    canvas_size = int(max(font.size*2, image_size))
 
-    canvas_size = int(image_size * 2)
+    # the canvas is a grayscale image
+    # background color is black (0)
+    # text color is white (255)
+    # you can experiment with other color spaces
     canvas = Image.new('L', (canvas_size, canvas_size), color=0)
     ctx = ImageDraw.Draw(canvas)
+    # the variable names `canvax` and `ctx` are inspired from JavaScript
+    # where we draw on HTMLCanvas
 
-    # find the offset to draw the image
-    text_offset = (canvas_size - font_size) / 2
+    # position the top-left position of the character's bounding box
+    # (fontSize x fontSize square) on the canvas to draw the characters
+    # https://pillow.readthedocs.io/en/stable/reference/ImageDraw.html#PIL.ImageDraw.PIL.ImageDraw.ImageDraw.text
+    char_x = (canvas_size - font.size) / 2
+    char_y = (canvas_size - font.size) / 2
+    char_origin_pos = (char_x, char_y)
 
-    # draw the text
     ctx.text(
-        (text_offset, text_offset),
-        text,
+        xy=char_origin_pos,
+        text=c,
         fill=255,
-        font=font
+        font=font.font,
     )
 
-    np_img = np.array(canvas)
-    non_zeros_indies = np_img.nonzero()
+    # if the image size is the canvas size then return the image without
+    # centering or cropping because we did try to make an image twice
+    # as large the font size
+    if canvas_size == image_size:
+        # I keep the pillow Image object instead of NumPy array so
+        # that we can save the image to file using the pillow encoder
+        # to encode to PNG without having to rely on something like
+        # OpenCV. We can always convert to NumPy array later if we want.
+        return canvas
 
-    # If the font does not support this character,
-    # it will draw either none or a square
-    # The try ... except block below is to deal with blank image
-    try:
-        max_x = non_zeros_indies[1][np.argmax(non_zeros_indies[1])]
-        min_x = non_zeros_indies[1][np.argmin(non_zeros_indies[1])]
+    # we will center the character by find the non-zero pixels to
+    # improve the model accuracy
+    # TODO center input before using model in other platform (e.g.
+    # Android - Java - Bitmap, Web - JavaScript - HTMLCanvas)
 
-        max_y = non_zeros_indies[0][np.argmax(non_zeros_indies[0])]
-        min_y = non_zeros_indies[0][np.argmin(non_zeros_indies[0])]
-    except:
-        # blank image encounter
+    # convert pillow Image to NumPy array
+    np_img = np.asarray(canvas, dtype=np.uint8)
+
+    # https://docs.scipy.org/doc/numpy/reference/generated/numpy.nonzero.html
+    zero_ys, zero_xs = np_img.nonzero()[:2]  # `[:2]` just to be safe
+
+    # there may be not any nonzero pixel(s) at all on the image because
+    # the font may not support the character or there is not any glyph
+    # for the character in the font or maybe for any reason I haven't
+    # encounter
+    if len(zero_xs) == 0:
+        warnings.warn(f'{font.name} gives blank image for {repr(c)}!')
         return None
 
-    actual_width = max_x - min_x
-    actual_height = max_y - min_y
+    min_x, max_x = min(zero_xs), max(zero_xs)
+    min_y, max_y = min(zero_ys), max(zero_ys)
+    # you can see the bounding box example here on Imgur
+    # https://i.imgur.com/lDGHNgL.png
 
-    x_padding = (image_size - actual_width) / 2
-    y_padding = (image_size - actual_height) / 2
+    # the character dimensions is caculated based on the nonzero pixels
+    character_width = max_x - min_x
+    character_height = max_y - min_y
 
-    offset_x = min_x - x_padding
-    offset_y = min_y - y_padding
+    image_offset_x = min_x - int((image_size - character_width)/2)
+    image_offset_y = min_y - int((image_size - character_height)/2)
+    # here is the example for the character's bounding box (in green)
+    # and the going to be exported image's bounding box (in blue)
+    # https://i.imgur.com/Gq3mLex.png
 
-    # centered-kanji image
-    final_img = canvas.crop((
-        offset_x, offset_y, offset_x + image_size,
-        offset_y + image_size
-    ))
+    # Crop the final image (left, top, right, bottom)
+    # https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.Image.crop
+    image_bounding_box = (
+        image_offset_x,
+        image_offset_y,
+        image_offset_x+image_size,
+        image_offset_y+image_size,
+    )
 
-    return final_img
+    return canvas.crop(image_bounding_box)
 
 
 @timeit

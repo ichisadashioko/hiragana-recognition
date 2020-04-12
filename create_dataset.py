@@ -123,6 +123,12 @@ def main():
     image_size = args.image_size
     font_size = args.font_size
 
+    if image_size < font_size:
+        warnings.warn((
+            f'You image size {image_size} may not enough to fit '
+            f'character with font size {font_size}!'
+        ))
+
     font_list = []
     file_list = os.listdir(fonts_dir)
     for filename in file_list:
@@ -152,7 +158,6 @@ def main():
 
         if not len(unsupported_chars) == 0:
             font_supportability_list.append(font.name, unsupported_chars)
-            # print(f'{font.name}:', *unsupported_chars)
 
     for font_name, unsupported_chars in font_supportability_list:
         print(f'{font_name}:', *unsupported_chars)
