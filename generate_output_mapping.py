@@ -12,7 +12,7 @@ import json
 import argparse
 import warnings
 
-from utils import backup_file_by_modified_date
+from utils import backup_file_by_modified_date, DEFAULT_LABEL_FILE
 
 
 def main():
@@ -33,7 +33,7 @@ def main():
         ),
     )
 
-    default_outfile = 'labels.json'
+    default_outfile = DEFAULT_LABEL_FILE
 
     parser.add_argument(
         '-o', '--outfile',

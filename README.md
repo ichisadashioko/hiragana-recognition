@@ -31,3 +31,10 @@ This script will generated the `labels.json` file. The order of characters are j
 When I got into machine learning, all the tutorials have nice and clean dataset ready for us to press a button and done. In this sample, we will have to create/find and clean the dataset ourselves. Well, I did clean the dataset to make this sample work. But I hope this example can help beginners who haven't able to do anything new beyond running through the tutorials.
 
 We will have to collect Hiragana-compatible fonts to generate the character images and put them in the [`fonts`](./fonts) directory.
+
+# References
+
+- `argparser`
+    - [Python Documentation](https://docs.python.org/3/library/argparse.html)
+- `decorator`
+    - [Corey Schafer's video](https://www.youtube.com/watch?v=FsAPt_9Bf3U)

@@ -2,12 +2,39 @@
 import os
 import time
 import re
-import math
+import unicodedata
+import traceback
+from typing import Callable
 
 from PIL import Image, ImageFont, ImageDraw
 import numpy as np
+from fontTools.ttLib import TTFont
+
+DEFAULT_LABEL_FILE = 'labels.json'
+
+MODULE_IMPORT_TIME = time.time()
+
+# TODO timeit decorator to log function execution time to log
+# file to visualize it later
 
 
+def timeit(func: Callable):
+
+    def wrapper(*args, **kwargs):
+        ts = time.time()
+        retval = func(*args, **kwargs)
+        te = time.time() - ts
+
+        with open(f'{MODULE_IMPORT_TIME}-runtime.log', mode='a+') as outfile:
+            outfile.write(f'{func.__name__}\t{te}')
+            outfile.write('\n')
+
+        return retval
+
+    return wrapper
+
+
+@timeit
 def normalize_filename(filename):
     """Replace invalid filename characters with underscore."""
     return re.sub(r"[\\\/\.\#\%\$\!\@\(\)\[\]\s]+", "_", filename)
@@ -17,32 +44,46 @@ def time_tostring(t):
     return time.strftime('%H:%M:%S', time.gmtime(t))
 
 
-def fetch_font(font_file: str, font_size=64):
-    # TODO use suggestion from this answer on StackExchange to filter
+@timeit
+def is_support(font_path: str, c: str):
+    # use suggestion from this answer on StackExchange to filter
     # unsupported characters (https://superuser.com/a/1452828/1043619)
-    font = ImageFont.truetype(font=font_file, size=font_size)
-    font_name = '_'.join(font.getname())
-
-    font_dict = dict()
-    font_dict['font'] = font
-    font_dict['font_name'] = normalize_filename(font_name)
-    font_dict['font_size'] = font_size
-
-    return font_dict
-
-
-def fetch_fonts(font_folder, font_size=64):
-
-    font_dicts = []
-    font_files = os.listdir(font_folder)
-    for font_file in font_files:
-        font_path = f"{font_folder}/{font_file}"
-        font_dict = fetch_font(font_path, font_size=font_size)
-        font_dicts.append(font_dict)
-
-    return font_dicts
+    # TODO test if this code is working or not by rendering the
+    # actual image
+    font = TTFont(font_path)
+    for cmap in font['cmap'].tables:
+        if cmap.isUnicode():
+            if ord(c) in cmap.cmap:
+                return True
+    return False
 
 
+class Font:
+    def __init__(
+        self,
+        name: str,
+        font: ImageFont.FreeTypeFont,
+        size: int,
+        path: str,
+    ):
+        self.name = name
+        self.font = font
+        self.size = size
+        self.path = path
+
+    def is_support(self, c):
+        return is_support(self.path, c)
+
+
+@timeit
+def fetch_font(font_file: str, font_size=64):
+    pillow_font = ImageFont.truetype(font=font_file, size=font_size)
+    font_name = '_'.join(pillow_font.getname())
+
+    return Font(font_name, pillow_font, font_size, font_file)
+
+
+@timeit
 def draw_text(text, font_dict, image_size=64):
 
     font = font_dict['font']
@@ -98,6 +139,7 @@ def draw_text(text, font_dict, image_size=64):
     return final_img
 
 
+@timeit
 def backup_file_by_modified_date(infile: str):
     if not os.path.exists(infile):
         raise Exception(f'{infile} does not exist!')
