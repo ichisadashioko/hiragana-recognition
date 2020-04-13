@@ -8,6 +8,7 @@ from collections import defaultdict
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 import pandas as pd
 
 from utils import LOG_DIRECTORY, LOG_SUFFIX, COLUMN_SEPARATOR, LogFile
@@ -68,11 +69,14 @@ def plot_log(log: LogFile):
 
         func_data[func_name]['avg'] = total_exec_time / num_calls
 
-    plt.figure(figsize=(12, 9))
+    fig = plt.figure(figsize=(12, 12))
+    # use GridSpec for more organized layout
+    # https://matplotlib.org/3.2.1/gallery/subplots_axes_and_figures/gridspec_multicolumn.html
+    gs = GridSpec(2, 2, figure=fig)
 
-    # Figure 1: total amount of time for each methods
+    # Plot 1: total amount of time for each methods
     # https://matplotlib.org/tutorials/introductory/pyplot.html#plotting-with-categorical-variables
-    ax = plt.subplot(131)
+    ax = plt.subplot(gs.new_subplotspec((0, 0)))
     ax.set_title('total amount of execution time')
     names = []
     values = []
@@ -88,8 +92,8 @@ def plot_log(log: LogFile):
         max_bar_height=max(values),
     )
 
-    # Figure 2: number of calls for each methods
-    ax = plt.subplot(132)
+    # Plot 2: number of calls for each methods
+    ax = plt.subplot(gs.new_subplotspec((0, 1)))
     ax.set_title('number of calls')
     names = []
     values = []
@@ -105,10 +109,10 @@ def plot_log(log: LogFile):
         max_bar_height=max(values),
     )
 
-    # Figure 3: plot max, min, and average for each methods
+    # Plot 3: plot max, min, and average for each methods
     # We use grouped barplot here.
     # https://python-graph-gallery.com/11-grouped-barplot/
-    ax = plt.subplot(133)
+    ax = plt.subplot(gs.new_subplotspec((1, 0), colspan=2))
     ax.set_title('max, min, and avg execution time')
 
     min_bars = []
@@ -122,9 +126,10 @@ def plot_log(log: LogFile):
         avg_bars.append(func_data[func_name]['avg'])
         group_labels.append(func_name)
 
-    bar_width = 1
+    bar_width = .25
     # bar width * (number of group + 1) for x-axis spacing
-    min_bars_xs = np.arange(len(min_bars)) * (bar_width * 4)
+    # 1 unit for spacing
+    min_bars_xs = np.arange(len(min_bars)) * (bar_width * (3+1))
     avg_bars_xs = [bar_width + x for x in min_bars_xs]
     max_bars_xs = [bar_width + x for x in avg_bars_xs]
 
@@ -166,13 +171,13 @@ def plot_log(log: LogFile):
     plot_values_on_top_of_bars(
         ax=ax,
         bars=bars,
-        values=[f'{x:.4f}' for x in max_bars],
+        values=[f'{x:.5f}' for x in max_bars],
         max_bar_height=max(max_bars),
     )
 
-    ax.set_xticks([bar_width + i for i in range(len(min_bars))])
+    # group label x position to middle bar
+    ax.set_xticks(avg_bars_xs)
     ax.set_xticklabels(group_labels)
-
     ax.legend()
 
     plt.show()
@@ -216,8 +221,9 @@ def main():
         log_file = LogFile(filename, ts, log_data)
         logs.append(log_file)
 
-    logs.sort(key=lambda x: x.ts)
+    logs.sort(key=lambda x: x.ts, reverse=True)
 
+    # command line GUI
     while True:
         list_log_files(logs)
         option = input('Choose log file to view (q to quit):')
@@ -231,6 +237,7 @@ def main():
         if (index < 0) or not (index < len(logs)):
             continue
 
+        print('Showing plot. Close it to come back here.')
         plot_log(logs[index])
 
 
