@@ -1,5 +1,6 @@
 __pycache__
 .ipynb_checkpoints
+log
 
 # ignore generated files
 *.tfrecord
@@ -10,3 +11,4 @@ __pycache__
 *.json
 *.log
 *.png
+*.tsv

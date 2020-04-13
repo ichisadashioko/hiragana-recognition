@@ -9,9 +9,13 @@ from typing import Callable
 
 from PIL import Image, ImageFont, ImageDraw
 import numpy as np
+import pandas as pd
 from fontTools.ttLib import TTFont
 
 DEFAULT_LABEL_FILE = 'labels.json'
+LOG_DIRECTORY = 'log'
+LOG_SUFFIX = '-runtime.log'
+COLUMN_SEPARATOR = '\t'
 MODULE_IMPORT_TIME = time.time()
 
 
@@ -26,13 +30,31 @@ def timeit(func: Callable):
         retval = func(*args, **kwargs)
         te = time.time() - ts
 
-        with open(f'{MODULE_IMPORT_TIME}-runtime.log', mode='a+') as outfile:
-            outfile.write(f'{func.__name__}\t{te}')
+        if not os.path.exists(LOG_DIRECTORY):
+            os.makedirs(LOG_DIRECTORY)
+
+        log_filepath = os.path.join(LOG_DIRECTORY, f'{MODULE_IMPORT_TIME}{LOG_SUFFIX}')  # noqa
+        with open(log_filepath, mode='a+') as outfile:
+            outfile.write(f'{func.__name__}{COLUMN_SEPARATOR}{te}')
             outfile.write('\n')
 
         return retval
 
     return wrapper
+
+
+def timestamp_to_datetime(ts: float):
+    return time.strftime('%Y-%m-%d_%H-%M-%S', time.gmtime(ts))
+
+
+class LogFile:
+    def __init__(self, name: str, ts: float, log_data: pd.DataFrame):
+        self.name = name
+        self.ts = ts
+        self.data = log_data
+
+    def __repr__(self):
+        return repr((timestamp_to_datetime(self.ts), self.name))
 
 
 @timeit
