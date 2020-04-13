@@ -19,6 +19,37 @@ COLUMN_SEPARATOR = '\t'
 MODULE_IMPORT_TIME = time.time()
 
 
+def dump_log(msg: str):
+    if not os.path.exists(LOG_DIRECTORY):
+        os.makedirs(LOG_DIRECTORY)
+
+    log_filepath = os.path.join(LOG_DIRECTORY, f'{MODULE_IMPORT_TIME}{LOG_SUFFIX}')  # noqa
+    with open(log_filepath, mode='a+') as outfile:
+        outfile.write(msg)
+        outfile.write('\n')
+
+
+class TerminateColor:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+
+
+def info(*args, **kwargs):
+    """Loging info to stdout."""
+    # https://stackoverflow.com/a/287944/8364403
+    print(f'[{TerminateColor.OKBLUE}INFO{TerminateColor.ENDC}] ', end='')
+    print(*args, **kwargs)
+
+
+def warn(*args, **kwargs):
+    print(f'[{TerminateColor.WARNING}WARNING{TerminateColor.ENDC}] ', end='')
+    print(*args, **kwargs)
+
+
 def timeit(func: Callable):
     """
     Decorator for measuring function execution time and log to file to
@@ -29,14 +60,7 @@ def timeit(func: Callable):
         ts = time.time()
         retval = func(*args, **kwargs)
         te = time.time() - ts
-
-        if not os.path.exists(LOG_DIRECTORY):
-            os.makedirs(LOG_DIRECTORY)
-
-        log_filepath = os.path.join(LOG_DIRECTORY, f'{MODULE_IMPORT_TIME}{LOG_SUFFIX}')  # noqa
-        with open(log_filepath, mode='a+') as outfile:
-            outfile.write(f'{func.__name__}{COLUMN_SEPARATOR}{te}')
-            outfile.write('\n')
+        dump_log(f'{func.__name__}{COLUMN_SEPARATOR}{te}')
 
         return retval
 
@@ -67,24 +91,6 @@ def time_tostring(t):
     return time.strftime('%H:%M:%S', time.gmtime(t))
 
 
-@timeit
-def is_support(font_path: str, c: str):
-    # use suggestion from this answer on StackExchange to filter
-    # unsupported characters (https://superuser.com/a/1452828/1043619)
-
-    # TODO test if this code is working or not by rendering the
-    # actual image (with some uncommon kanji)
-
-    # TODO check if the open file operation everytime too costly. If
-    # that is true, move this function logic to fetching font function
-    font = TTFont(font_path)
-    for cmap in font['cmap'].tables:
-        if cmap.isUnicode():
-            if ord(c) in cmap.cmap:
-                return True
-    return False
-
-
 class Font:
     """
     Wrapper class for storing some data that we need to identify.
@@ -106,29 +112,34 @@ class Font:
         font: ImageFont.FreeTypeFont,
         size: int,
         path: str,
+        supported_chars: list,
     ):
         self.name = name
         self.font = font
         self.size = size
         self.path = path
-
-    def is_support(self, c):
-        # I think there is a way to using `descriptor` for class method
-        # but that will make the decorator not compatible with others
-        # function so I move the this function logic to a higher-order
-        # function.
-        return is_support(self.path, c)
+        self.supported_chars = supported_chars
 
     def __repr__(self):
         return repr((self.name, self.size, self.path))
 
 
 @timeit
-def fetch_font(font_file: str, font_size=64):
+def fetch_font(font_file: str, font_size=64, characters=list()):
     pillow_font = ImageFont.truetype(font=font_file, size=font_size)
     font_name = '_'.join(pillow_font.getname())
 
-    return Font(font_name, pillow_font, font_size, font_file)
+    # TODO test if this code is working or not by rendering the
+    # actual image (with some uncommon kanji)
+    ft_font = TTFont(font_file)
+    supported_chars = []
+    for cmap in ft_font['cmap'].tables:
+        if cmap.isUnicode():
+            for c in characters:
+                if ord(c) in cmap.cmap:
+                    supported_chars.append(c)
+
+    return Font(font_name, pillow_font, font_size, font_file, supported_chars)
 
 
 @timeit

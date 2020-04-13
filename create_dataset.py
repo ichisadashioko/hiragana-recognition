@@ -9,7 +9,7 @@ import warnings
 
 from tqdm import tqdm
 
-from utils import DEFAULT_LABEL_FILE, fetch_font
+from utils import DEFAULT_LABEL_FILE, fetch_font, info, warn
 
 
 def positive_int(string: str):
@@ -130,37 +130,39 @@ def main():
         ))
 
     font_list = []
+    info('Fetching fonts!')
     file_list = os.listdir(fonts_dir)
-    for filename in file_list:
+    for filename in tqdm(file_list):
         child_path = os.path.join(fonts_dir, filename)
 
         if not os.path.isfile(child_path):
-            warnings.warn(f'Skipping directory {child_path}!')
+            warn(f'Skipping directory {child_path}!')
             continue
 
         file_ext = os.path.splitext(filename)[1]
         file_ext = file_ext.lower()
 
         if (file_ext == '.ttf') or (file_ext == '.otf'):
-            font = fetch_font(child_path, font_size=font_size)
+            font = fetch_font(
+                font_file=child_path,
+                font_size=font_size,
+                characters=labels,
+            )
             font_list.append(font)
         else:
-            warnings.warn(f'Skipping unknown file type {child_path}!')
+            warn(f'Skipping unknown file type {child_path}!')
             continue
 
-    print('Checking if fonts support all the label codepoint.')
+    info('Checking if fonts support all the label codepoint.')
     font_supportability_list = []
     for font in tqdm(font_list):
-        unsupported_chars = []
-        for label in labels:
-            if not font.is_support(label):
-                unsupported_chars.append(label)
+        ns_chars = [c for c in labels if not c in font.supported_chars]
 
-        if not len(unsupported_chars) == 0:
-            font_supportability_list.append(font.name, unsupported_chars)
+        if not len(ns_chars) == 0:
+            font_supportability_list.append((font.name, ns_chars))
 
-    for font_name, unsupported_chars in font_supportability_list:
-        warnings.warn(f'{font_name}:', *unsupported_chars)
+    for font_name, ns_chars in font_supportability_list:
+        warn(f'{font_name}:', *ns_chars)
 
 
 if __name__ == "__main__":
