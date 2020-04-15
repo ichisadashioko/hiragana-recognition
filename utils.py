@@ -4,8 +4,9 @@ import time
 import re
 import unicodedata
 import traceback
-import warnings
+import hashlib
 from typing import Callable
+from functools import wraps
 
 from PIL import Image, ImageFont, ImageDraw
 import numpy as np
@@ -22,15 +23,16 @@ DATASET_META_FILE_SUFFIX = '.meta.json'
 LOG_DIRECTORY = 'log'
 LOG_SUFFIX = '-runtime.log'
 COLUMN_SEPARATOR = '\t'
-MODULE_IMPORT_TIME = time.time()
+LOG_HEADER = ('func_name', 'start_time', 'end_time')
+MODULE_IMPORT_TIME = int(time.time())
+LOG_FILEPATH = os.path.join(LOG_DIRECTORY, f'{MODULE_IMPORT_TIME}{LOG_SUFFIX}')
 
 
 def dump_log(msg: str):
     if not os.path.exists(LOG_DIRECTORY):
         os.makedirs(LOG_DIRECTORY)
 
-    log_filepath = os.path.join(LOG_DIRECTORY, f'{MODULE_IMPORT_TIME}{LOG_SUFFIX}')  # noqa
-    with open(log_filepath, mode='a+') as outfile:
+    with open(LOG_FILEPATH, mode='a+') as outfile:
         outfile.write(msg)
         outfile.write('\n')
 
@@ -61,12 +63,15 @@ def timeit(func: Callable):
     Decorator for measuring function execution time and log to file to
     visualize/profiling later.
     """
-
+    # reference https://stackoverflow.com/a/739665/8364403
+    @wraps(func)
     def wrapper(*args, **kwargs):
-        ts = time.time()
+        # TODO log both start time and end time instead of only
+        # execution time
+        ts = str(time.time())
         retval = func(*args, **kwargs)
-        te = time.time() - ts
-        dump_log(f'{func.__name__}{COLUMN_SEPARATOR}{te}')
+        te = str(time.time())
+        dump_log(COLUMN_SEPARATOR.join((func.__name__, ts, te)))
 
         return retval
 
@@ -261,3 +266,17 @@ def backup_file_by_modified_date(infile: str):
     os.rename(infile_abspath, backup_filepath)
 
     return backup_filepath
+
+
+@timeit
+def hash_md5(s: str):
+    m = hashlib.md5()
+    m.update(s)
+    return m.digest().hex().upper()
+
+
+@timeit
+def hash_sha256(s: str):
+    m = hashlib.sha256()
+    m.update(s)
+    return m.digest().hex().upper()

@@ -44,7 +44,8 @@ def plot_log(log: LogFile):
     func_data = {}
 
     for row in np_data:
-        func_name, exec_time = row[:2]
+        func_name, ts, te = row[:3]
+        exec_time = te - ts
         if func_name in func_data:
             func_data[func_name]['num_calls'] += 1
             func_data[func_name]['total_exec_time'] += exec_time
@@ -206,20 +207,48 @@ def main():
             continue
 
         filepath = os.path.join(LOG_DIRECTORY, filename)
-
+        support_log_format = True
+        log_data = []
         try:
-            log_data = pd.read_csv(
-                filepath,
-                sep=COLUMN_SEPARATOR,
-                names=('func_name', 'exec_time'),
+            # I don't use pandas because it will fill the empty value
+            # of old log format instead of raise Exception.
+            with open(filepath, mode='r') as infile:
+                for line in infile:
+                    line = line.replace('\n', '')
+                    if len(line) == 0:
+                        # empty line
+                        continue
+
+                    row = line.split(COLUMN_SEPARATOR)
+                    if not len(row) == len(LOG_HEADER):
+                        support_log_format = False
+                        warn(f'Skipping {filepath}! Unsupported format!')
+                        break
+
+                    # format data
+                    row = [row[0], float(row[1]), float(row[2])]
+                    log_data.append(row)
+
+            if not support_log_format:
+                continue
+
+            log_data = pd.DataFrame(
+                data=log_data,
+                columns=LOG_HEADER,
             )
+
         except:
+            # traceback.print_exc() # keep this here for debugging
             warn(f'Skipping incompatible format {filename}!')
             continue
 
         ts = float(filename.replace(LOG_SUFFIX, ''))
         log_file = LogFile(filename, ts, log_data)
         logs.append(log_file)
+
+    if len(logs) == 0:
+        info(f'There is not log to show!')
+        return
 
     logs.sort(key=lambda x: x.ts, reverse=True)
 

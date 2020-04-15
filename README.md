@@ -34,7 +34,6 @@ We will have to collect Hiragana-compatible fonts to generate the character imag
 
 # References
 
-- `argparser`
-    - [Python Documentation](https://docs.python.org/3/library/argparse.html)
-- `decorator`
-    - [Corey Schafer's video](https://www.youtube.com/watch?v=FsAPt_9Bf3U)
+- `argparser` - [Python Documentation](https://docs.python.org/3/library/argparse.html)
+- `decorator` - [Corey Schafer's video](https://www.youtube.com/watch?v=FsAPt_9Bf3U)
+- `classmethod` - [Pythoc Documenation](https://docs.python.org/3/library/functions.html#classmethod)

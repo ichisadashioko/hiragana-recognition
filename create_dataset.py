@@ -10,8 +10,10 @@ import warnings
 import itertools
 
 from tqdm import tqdm
+import tensorflow as tf
 
 from utils import *
+from tensorflow_utils import *
 
 
 def positive_int(string: str):
@@ -62,6 +64,7 @@ def json_labels(string: str):
         raise ArgumentTypeError(f'{repr(string)} is not a valid JSON file!')
 
 
+@timeit
 def main():
     default_infile = DEFAULT_LABEL_FILE
     default_fonts_dir = 'fonts'
@@ -169,9 +172,15 @@ def main():
     dataset_meta_filename = dataset_basename + DATASET_META_FILE_SUFFIX
     dataset_meta_filepath = os.path.join(out_dir, dataset_meta_filename)
 
+    # TODO modify "Modified Time" for two of these file have the same
+    # modified time
     if os.path.exists(dataset_filepath):
         backup_filepath = backup_file_by_modified_date(dataset_filepath)
         info(f'Backup {dataset_filepath} at {backup_filepath}.')
+
+    if os.path.exists(dataset_meta_filepath):
+        backup_filepath = backup_file_by_modified_date(dataset_meta_filepath)
+        info(f'Backup {dataset_meta_filepath} at {backup_filepath}.')
 
     if image_size < font_size:
         warn((
@@ -247,23 +256,85 @@ def main():
 
     entries = []
 
-    # create task list to have progress bar with `tqdm`
-    render_tasks = list(itertools.product(labels, font_list))
-    pbar = tqdm(render_tasks)
-    for c, font in pbar:
-        pbar.set_description(f'{c} - {font.name}')
+    dataset_metadata = {
+        'record_summary': {
+            'number_of_records': 0,
+        },
+        'dataset': [
+            # The data will be append to here to reflect the order in
+            # the tfrecord file.
 
-        if not c in font.supported_chars:
-            warn(f'Skipping {c} with {font.name}!')
-            continue
+            # This record object does not contain the actual image and
+            # we shouldn't store the image in here because the number
+            # of images and their total size will easily eat all our
+            # RAM (depend on the size of dataset).
 
-        image = render_image(c, font, image_size)
-        if image is None:
-            continue
+            # Reference record format:
+            # {'hash': 'MD5', 'character': 'あ', 'font_name': 'HGKyokashotai_Medium'}
 
-        # buffer = io.BytesIO()
-        # image.save(buffer, format='PNG')
-        # encoded_image = buffer.getvalue()
+            # I record these information only so that we can
+            # somehow inpsect the dataset and check some of them to be
+            # invalid. We can come back and skip/remove this entry next
+            # time we process the data.
+            # TODO create a web interface to inspect the dataset
+        ],
+        'invalid_records': [],
+    }
+
+    with tf.io.TFRecordWriter(dataset_filepath) as tfrecord_writer:
+        # create task list to have progress bar with `tqdm`
+        # TODO shuffle dataset
+        # TODO split dataset to small files if it is too large (>100MB)
+        render_tasks = list(itertools.product(labels, font_list))
+        pbar = tqdm(render_tasks)
+        for c, font in pbar:
+            pbar.set_description(f'{c} - {font.name}')
+
+            if not c in font.supported_chars:
+                warn(f'Skipping {c} with {font.name}!')
+                continue
+
+            image = render_image(c, font, image_size)
+            if image is None:
+                continue
+
+            buffer = io.BytesIO()
+            image.save(buffer, format='PNG')
+            encoded_image = buffer.getvalue()
+
+            desc = f'{c} grayscale image created with font {font.name} at font size {font.size}.'
+            ts = int(time.time())
+            hash = hash_md5(f'{desc}{ts}'.encode('utf-8'))
+
+            dataset_metadata['record_summary']['number_of_records'] += 1
+            dataset_metadata['dataset'].append({
+                'hash': hash,
+                'character': c,
+                'font_name': font.name,
+            })
+
+            record = CharacterTFRecordDataset.serialize_record(
+                hash=hash,
+                character=c,
+                width=image_size,
+                height=image_size,
+                depth=1,
+                image=encoded_image,
+                font_size=font_size,
+                font_name=font.name,
+                description=desc,
+            )
+
+            tfrecord_writer.write(record)
+
+    # https://docs.python.org/3/library/os.html#os.utime
+    ts = time.time()
+    os.utime(dataset_filepath, (ts, ts))
+
+    with open(dataset_meta_filepath, mode='w', encoding='utf-8') as outfile:
+        json.dump(dataset_metadata, outfile, ensure_ascii=False)
+
+    os.utime(dataset_meta_filepath, (ts, ts))
 
 
 if __name__ == "__main__":

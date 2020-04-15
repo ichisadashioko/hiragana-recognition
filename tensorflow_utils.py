@@ -7,22 +7,111 @@
 
 import tensorflow as tf
 
+from utils import timeit
 
-# The following functions can be used to convert a value
-# to a type compatible with tf.Example.
+# http://web.archive.org/web/20200322091949/https://www.tensorflow.org/tutorials/load_data/tfrecord
+# The following functions can be used to convert a value to a type
+# compatible with tf.Example.
+
+
+@timeit
 def _bytes_feature(value):
     """Returns a bytes_list from a string / byte."""
+    if isinstance(value, type(tf.constant(0))):
+        # BytesList won't unpack a string from an EagerTensor.
+        value = value.numpy()
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
 
+@timeit
 def _float_feature(value):
     """Returns a float_list from a float / double."""
     return tf.train.Feature(float_list=tf.train.FloatList(value=[value]))
 
 
+@timeit
 def _int64_feature(value):
     """Returns an int64_list from a bool / enum / int / uint."""
     return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+
+
+class CharacterTFRecordDataset:
+    ENCODING = 'utf-8'
+    # a unique hash for each record by apply <> hashing a set of
+    # properties and the timestamp at the creation time. This way we
+    # can easily identify each records.
+    HASH_FEATURE_NAME = 'HASH'
+    CHARACTER_FEATURE_NAME = 'CHARACTER'
+    IMAGE_WIDTH_FEATURE_NAME = 'WIDTH'
+    IMAGE_HEIGHT_FEATURE_NAME = 'HEIGHT'
+    IMAGE_DEPTH_FEATURE_NAME = 'DEPTH'
+    PNG_IMAGE_FEATURE_NAME = 'PNG_IMAGE'
+    FONT_SIZE_FEATURE_NAME = 'FONT_SIZE'
+    FONT_NAME_FEATURE_NAME = 'FONT_NAME'
+    DESCRIPTION_FEATURE_NAME = 'DESCRIPTION'
+
+    FEATURE_DESC = {
+        HASH_FEATURE_NAME: tf.io.FixedLenFeature([], tf.string),
+        CHARACTER_FEATURE_NAME: tf.io.FixedLenFeature([], tf.string),
+        IMAGE_WIDTH_FEATURE_NAME: tf.io.FixedLenFeature([], tf.int64),
+        IMAGE_HEIGHT_FEATURE_NAME: tf.io.FixedLenFeature([], tf.int64),
+        IMAGE_DEPTH_FEATURE_NAME: tf.io.FixedLenFeature([], tf.int64),
+        PNG_IMAGE_FEATURE_NAME: tf.io.FixedLenFeature([], tf.string),
+        FONT_SIZE_FEATURE_NAME: tf.io.FixedLenFeature([], tf.int64),
+        FONT_NAME_FEATURE_NAME: tf.io.FixedLenFeature([], tf.string),
+        DESCRIPTION_FEATURE_NAME: tf.io.FixedLenFeature([], tf.string),
+    }
+
+    # reference https://docs.python.org/3/library/functions.html#classmethod
+    @classmethod
+    @timeit
+    def serialize_record(
+        cls,
+        hash: str,
+        character: str,
+        width: int,
+        height: int,
+        depth: int,
+        image: bytes,
+        font_size: int,
+        font_name: str,
+        description: str,
+    ) -> bytes:
+        encoded_hash = hash.encode(cls.ENCODING)
+        encoded_character = character.encode(cls.ENCODING)
+        encoded_font_name = font_name.encode(cls.ENCODING)
+        encoded_desc = description.encode(cls.ENCODING)
+
+        # create a dictionary mappin the feature name to the
+        # tf.Example-compatible data type.
+        feature_dict = {
+            cls.HASH_FEATURE_NAME: _bytes_feature(encoded_hash),
+            cls.CHARACTER_FEATURE_NAME: _bytes_feature(encoded_character),
+            cls.IMAGE_WIDTH_FEATURE_NAME: _int64_feature(width),
+            cls.IMAGE_HEIGHT_FEATURE_NAME: _int64_feature(height),
+            cls.IMAGE_DEPTH_FEATURE_NAME: _int64_feature(depth),
+            cls.PNG_IMAGE_FEATURE_NAME: _bytes_feature(image),
+            cls.FONT_SIZE_FEATURE_NAME: _int64_feature(font_size),
+            cls.FONT_NAME_FEATURE_NAME: _bytes_feature(encoded_font_name),
+            cls.DESCRIPTION_FEATURE_NAME: _bytes_feature(encoded_desc),
+        }
+
+        # create a Features message using tf.train.Example
+        example_proto = tf.train.Example(
+            features=tf.train.Features(feature=feature_dict),
+        )
+
+        return example_proto.SerializeToString()
+
+    @classmethod
+    @timeit
+    def read_record(cls, example_proto):
+        # Parse the input tf.Example proto using the feature description
+        # dictionary
+        # TODO Why we only use `parse_single_example`? There is also
+        # `parse_sequence_example` method. Check to see if that makes
+        # any improvement.
+        return tf.io.parse_single_example(example_proto, cls.FEATURE_DESC)
 
 
 def convert_to_tfrec(all_image_paths, all_labels, filename):
