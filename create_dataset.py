@@ -332,7 +332,7 @@ def main():
     os.utime(dataset_filepath, (ts, ts))
 
     with open(dataset_meta_filepath, mode='w', encoding='utf-8') as outfile:
-        json.dump(dataset_metadata, outfile, ensure_ascii=False)
+        json.dump(dataset_metadata, outfile, ensure_ascii=False, indent='  ')
 
     os.utime(dataset_meta_filepath, (ts, ts))
 
