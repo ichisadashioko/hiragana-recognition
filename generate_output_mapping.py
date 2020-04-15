@@ -10,9 +10,8 @@ import re
 import time
 import json
 import argparse
-import warnings
 
-from utils import backup_file_by_modified_date, DEFAULT_LABEL_FILE
+from utils import backup_file_by_modified_date, DEFAULT_LABEL_FILE, warn
 
 
 def main():
@@ -56,10 +55,10 @@ def main():
         raise Exception(f'{infile} does not exist!')
 
     if os.path.exists(outfile):
-        warnings.warn(f'Output file {outfile} is already existed!')
+        warn(f'Output file {outfile} is already existed!')
 
         backup_path = backup_file_by_modified_date(outfile)
-        warnings.warn(f'It has been backed up at {backup_path}.')
+        warn(f'It has been backed up at {backup_path}.')
 
     lines = open(infile, mode='r', encoding='utf-8').readlines()
     content = ''.join(lines)

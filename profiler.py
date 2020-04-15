@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import pandas as pd
 
-from utils import LOG_DIRECTORY, LOG_SUFFIX, COLUMN_SEPARATOR, LogFile
+from utils import *
 
 
 def list_log_files(log_files: List[LogFile]):
@@ -185,7 +185,7 @@ def plot_log(log: LogFile):
 
 def main():
     if not os.path.exists(LOG_DIRECTORY):
-        print(f'There is not log to show!')
+        info(f'There is not log to show!')
         return
     elif not os.path.isdir(LOG_DIRECTORY):
         raise Exception((
@@ -195,14 +195,14 @@ def main():
 
     file_list = os.listdir(LOG_DIRECTORY)
     if len(file_list) == 0:
-        print(f'There is not log to show!')
+        info(f'There is not log to show!')
         return
 
     logs = []
 
     for filename in file_list:
         if not LOG_SUFFIX in filename:
-            print(f'[WARNING] Skipping file {filename}.')
+            warn(f'Skipping file {filename}.')
             continue
 
         filepath = os.path.join(LOG_DIRECTORY, filename)
@@ -214,7 +214,7 @@ def main():
                 names=('func_name', 'exec_time'),
             )
         except:
-            print(f'[WARNING] Skipping incompatible format {filename}!')
+            warn(f'Skipping incompatible format {filename}!')
             continue
 
         ts = float(filename.replace(LOG_SUFFIX, ''))
@@ -237,7 +237,7 @@ def main():
         if (index < 0) or not (index < len(logs)):
             continue
 
-        print('Showing plot. Close it to come back here.')
+        info('Showing plot. Close it to come back here.')
         plot_log(logs[index])
 
 

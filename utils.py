@@ -12,7 +12,13 @@ import numpy as np
 import pandas as pd
 from fontTools.ttLib import TTFont
 
+# `~!@#$%^&*,<>?'":;|\/
+INVALID_FILENAME_CHARS = '`~!@#$%^&*,<>?\'":;|\\/'
 DEFAULT_LABEL_FILE = 'labels.json'
+DEFAULT_DATASET_BASENAME = 'dataset'
+DATASET_EXTENSION = '.tfrecord'
+DATASET_META_FILE_SUFFIX = '.meta.json'
+
 LOG_DIRECTORY = 'log'
 LOG_SUFFIX = '-runtime.log'
 COLUMN_SEPARATOR = '\t'
@@ -84,7 +90,15 @@ class LogFile:
 @timeit
 def normalize_filename(filename):
     """Replace invalid filename characters with underscore."""
-    return re.sub(r"[\\\/\.\#\%\$\!\@\(\)\[\]\s]+", "_", filename)
+    return re.sub(
+        pattern='['
+        + re.escape(INVALID_FILENAME_CHARS)
+        + re.escape('(){}[]')
+        + r'\s'
+        + ']+',
+        repl='_',
+        string=filename,
+    ).strip('_')
 
 
 def time_tostring(t):
@@ -143,7 +157,7 @@ def fetch_font(font_file: str, font_size=64, characters=list()):
 
 
 @timeit
-def render_image(c: str, font: Font, image_size=64):
+def render_image(c: str, font: Font, image_size=64) -> Image:
     pillow_font = font.font
 
     # we create a canvas at least twice as large as the font size to
@@ -200,7 +214,7 @@ def render_image(c: str, font: Font, image_size=64):
     # for the character in the font or maybe for any reason I haven't
     # encounter
     if len(zero_xs) == 0:
-        warnings.warn(f'{font.name} gives blank image for {repr(c)}!')
+        warn(f'{font.name} gives blank image for {repr(c)}!')
         return None
 
     min_x, max_x = min(zero_xs), max(zero_xs)
