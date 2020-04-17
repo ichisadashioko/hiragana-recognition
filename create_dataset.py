@@ -278,7 +278,18 @@ def main():
             # time we process the data.
             # TODO create a web interface to inspect the dataset
         ],
+        # record format for `invalid_records` same as `dataset` above
+        # after we implement the web interface for inspection, the
+        # selected invalid image will be moved from `dataset` above to
+        # here
         'invalid_records': [],
+        'known_unsupported_combination': {
+            # record format {'character': 'あ', 'font_name': 'HGKyokashotai_Medium'}
+            # we may still need to inspect all these combination that
+            # have been filtered by our runtime.
+            'not_in_cmap': [],
+            'give_blank_image': [],
+        }
     }
 
     with tf.io.TFRecordWriter(dataset_filepath) as tfrecord_writer:
@@ -292,10 +303,18 @@ def main():
 
             if not c in font.supported_chars:
                 warn(f'Skipping {c} with {font.name}!')
+                dataset_metadata['known_unsupported_combination']['not_in_cmap'].append({
+                    'character': c,
+                    'font_name': font.name,
+                })
                 continue
 
             image = render_image(c, font, image_size)
             if image is None:
+                dataset_metadata['known_unsupported_combination']['give_blank_image'].append({
+                    'character': c,
+                    'font_name': font.name,
+                })
                 continue
 
             buffer = io.BytesIO()
