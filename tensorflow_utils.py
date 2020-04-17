@@ -7,7 +7,9 @@
 
 import tensorflow as tf
 
-from utils import timeit
+from constants import *
+from logger import *
+from utils import *
 
 # http://web.archive.org/web/20200322091949/https://www.tensorflow.org/tutorials/load_data/tfrecord
 # The following functions can be used to convert a value to a type

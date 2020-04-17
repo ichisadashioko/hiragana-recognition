@@ -11,7 +11,19 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import pandas as pd
 
+from constants import *
+from logger import *
 from utils import *
+
+
+class LogFile:
+    def __init__(self, name: str, ts: float, log_data: pd.DataFrame):
+        self.name = name
+        self.ts = ts
+        self.data = log_data
+
+    def __repr__(self):
+        return repr((timestamp_to_datetime(self.ts), self.name))
 
 
 def list_log_files(log_files: List[LogFile]):

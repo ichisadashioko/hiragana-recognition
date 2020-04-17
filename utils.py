@@ -5,91 +5,18 @@ import re
 import unicodedata
 import traceback
 import hashlib
-from typing import Callable
-from functools import wraps
 
 from PIL import Image, ImageFont, ImageDraw
 import numpy as np
 import pandas as pd
 from fontTools.ttLib import TTFont
 
-# `~!@#$%^&*,<>?'":;|\/
-INVALID_FILENAME_CHARS = '`~!@#$%^&*,<>?\'":;|\\/'
-DEFAULT_LABEL_FILE = 'labels.json'
-DEFAULT_DATASET_BASENAME = 'dataset'
-DATASET_EXTENSION = '.tfrecord'
-DATASET_META_FILE_SUFFIX = '.meta.json'
-
-LOG_DIRECTORY = 'log'
-LOG_SUFFIX = '-runtime.log'
-COLUMN_SEPARATOR = '\t'
-LOG_HEADER = ('func_name', 'start_time', 'end_time')
-MODULE_IMPORT_TIME = int(time.time())
-LOG_FILEPATH = os.path.join(LOG_DIRECTORY, f'{MODULE_IMPORT_TIME}{LOG_SUFFIX}')
-
-
-def dump_log(msg: str):
-    if not os.path.exists(LOG_DIRECTORY):
-        os.makedirs(LOG_DIRECTORY)
-
-    with open(LOG_FILEPATH, mode='a+') as outfile:
-        outfile.write(msg)
-        outfile.write('\n')
-
-
-class TerminateColor:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-
-
-def info(*args, **kwargs):
-    """Loging info to stdout."""
-    # https://stackoverflow.com/a/287944/8364403
-    print(f'[{TerminateColor.OKBLUE}INFO{TerminateColor.ENDC}] ', end='')
-    print(*args, **kwargs)
-
-
-def warn(*args, **kwargs):
-    print(f'[{TerminateColor.WARNING}WARNING{TerminateColor.ENDC}] ', end='')
-    print(*args, **kwargs)
-
-
-def timeit(func: Callable):
-    """
-    Decorator for measuring function execution time and log to file to
-    visualize/profiling later.
-    """
-    # reference https://stackoverflow.com/a/739665/8364403
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        # TODO log both start time and end time instead of only
-        # execution time
-        ts = str(time.time())
-        retval = func(*args, **kwargs)
-        te = str(time.time())
-        dump_log(COLUMN_SEPARATOR.join((func.__name__, ts, te)))
-
-        return retval
-
-    return wrapper
+from constants import *
+from logger import *
 
 
 def timestamp_to_datetime(ts: float):
     return time.strftime('%Y-%m-%d_%H-%M-%S', time.gmtime(ts))
-
-
-class LogFile:
-    def __init__(self, name: str, ts: float, log_data: pd.DataFrame):
-        self.name = name
-        self.ts = ts
-        self.data = log_data
-
-    def __repr__(self):
-        return repr((timestamp_to_datetime(self.ts), self.name))
 
 
 @timeit
