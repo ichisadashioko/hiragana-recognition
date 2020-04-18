@@ -14,6 +14,7 @@ import argparse
 from constants import *
 from logger import *
 from utils import *
+from serializable import *
 
 
 def main():
@@ -34,15 +35,13 @@ def main():
         ),
     )
 
-    default_outfile = DEFAULT_LABEL_FILE
-
     parser.add_argument(
         '-o', '--outfile',
         type=str,
-        default=default_outfile,
+        default=LABEL_FILENAME,
         required=False,
         help=(
-            f'output file path. Default value is {repr(default_outfile)}. '
+            f'output file path. Default value is {repr(LABEL_FILENAME)}. '
             f'The output file will be back up (rename) if it is '
             f'already existed!'
         ),
@@ -67,8 +66,19 @@ def main():
     characters = content.replace('\n', '')
     characters = [c for c in characters]
 
+    label_file = LabelFile(
+        source=os.path.basename(infile),
+        content=content,
+        labels=characters,
+    )
+
     with open(outfile, mode='w', encoding='utf-8') as out_stream:
-        json.dump(characters, out_stream, indent=2, ensure_ascii=False)
+        json.dump(
+            obj=label_file.__dict__,
+            fp=out_stream,
+            indent=2,
+            ensure_ascii=False,
+        )
 
 
 if __name__ == '__main__':

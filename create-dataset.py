@@ -15,125 +15,101 @@ from constants import *
 from logger import *
 from utils import *
 from argtypes import *
+from serializable import *
 
 
 @timeit
 def main():
-    default_infile = DEFAULT_LABEL_FILE
-    default_fonts_dir = 'fonts'
-    default_font_size = 64
-    default_image_size = 64
 
     parser = argparse.ArgumentParser(
         description=(
             f'Generate image dataset for characters in '
-            f'{repr(default_infile)} from font files in the '
-            f'{repr(default_fonts_dir)} directory.'
+            f'{repr(LABEL_FILENAME)} from font files in the '
+            f'{repr(FONTS_DIR)} directory.'
         ),
     )
 
     parser.add_argument(
-        '-l', '--label-file',
-        dest='labels',
-        type=json_labels,
-        default=default_infile,
+        '--label-file',
+        dest='label_file',
+        type=labelfile_compatible_json,
+        default=LABEL_FILENAME,
         required=False,
         help=(
             f'the file contains list of characters to generate image'
             f'dataset for. Default file path to be read is '
-            f'{repr(default_infile)}. The file must be a JSON file '
+            f'{repr(LABEL_FILENAME)}. The file must be a JSON file '
             'that contains an array of characters.'
         ),
     )
 
     parser.add_argument(
-        '-fd', '--fonts',
+        '--fonts',
         dest='fonts_dir',
         type=directory,
-        default=default_fonts_dir,
+        default=FONTS_DIR,
         required=False,
         help=(
             f'The directory that contains TrueType (.ttf) or OpenType '
             f'(.otf) font files. Default look up directory is '
-            f'{repr(default_fonts_dir)}.'
+            f'{repr(FONTS_DIR)}.'
         ),
     )
 
     parser.add_argument(
-        '-is', '--image-size',
+        '--image-size',
         dest='image_size',
         type=positive_int,
-        default=default_image_size,
+        default=IMAGE_SIZE,
         required=False,
         help=(
             f'The size for the image in pixel(s). Default value is '
-            f'{default_image_size} pixel(s).'
+            f'{IMAGE_SIZE} pixel(s).'
         ),
     )
 
     parser.add_argument(
-        '-fs', '--font-size',
+        '--font-size',
         dest='font_size',
         type=positive_int,
-        default=default_font_size,
+        default=FONT_SIZE,
         required=False,
         help=(
             f'The font size for rendering the characters. '
-            f'Default value is {default_font_size}.'
+            f'Default value is {FONT_SIZE}.'
         )
     )
 
     parser.add_argument(
-        '-od', '--out-dir',
+        '--out-dir',
         dest='out_dir',
-        type=directory,
-        default='.',
+        type=valid_filename,
+        default=DATASETS_DIR,
         required=False,
         help=(
             'The directory to put the generated dataset. '
-            'Default is current directory.'
-        ),
-    )
-
-    parser.add_argument(
-        '-base', '--dataset_basename',
-        dest='dataset_basename',
-        type=valid_filename,
-        default=DEFAULT_DATASET_BASENAME,
-        required=False,
-        help=(
-            f'Set the dataset output filename (basename). '
-            f'Default to {DEFAULT_DATASET_BASENAME}.'
+            f'Default is {repr(DATASETS_DIR)}.'
         ),
     )
 
     args = parser.parse_args()
-    labels = args.labels
+    label_file: LabelFile = args.label_file
     fonts_dir = args.fonts_dir
     image_size = args.image_size
     font_size = args.font_size
-
     out_dir = args.out_dir
-    dataset_basename = args.dataset_basename
 
-    # the TFRecord file
-    dataset_filename = dataset_basename + DATASET_EXTENSION
-    dataset_filepath = os.path.join(out_dir, dataset_filename)
-    # meta data for the TFRecord file because TFRecord doesn't store
-    # some meta data that we will need for training (e.g. total number
-    # of records)
-    dataset_meta_filename = dataset_basename + DATASET_META_FILE_SUFFIX
-    dataset_meta_filepath = os.path.join(out_dir, dataset_meta_filename)
+    dataset_dirname = os.path.splitext(label_file.source)[0]
+    dataset_dir = os.path.join(out_dir, dataset_dirname)
+    if os.path.exists(dataset_dir):
+        warn(f'dataset_dir {repr(dataset_dir)} existed!')
+        backup_filepath = backup_file_by_modified_date(dataset_dir)
+        info(f'Backup it at {repr(backup_filepath)}')
 
-    # TODO modify "Modified Time" for two of these file have the same
-    # modified time
-    if os.path.exists(dataset_filepath):
-        backup_filepath = backup_file_by_modified_date(dataset_filepath)
-        info(f'Backup {dataset_filepath} at {backup_filepath}.')
+    os.makedirs(dataset_dir)
 
-    if os.path.exists(dataset_meta_filepath):
-        backup_filepath = backup_file_by_modified_date(dataset_meta_filepath)
-        info(f'Backup {dataset_meta_filepath} at {backup_filepath}.')
+    tfrecord_filepath = os.path.join(dataset_dir, TFRECORD_FILENAME)
+    metadata_filepath = os.path.join(dataset_dir, METADATA_FILENAME)
 
     if image_size < font_size:
         warn((
@@ -141,6 +117,7 @@ def main():
             f'character with font size {font_size}!'
         ))
 
+    labels = label_file.labels
     font_list = []
     info('Fetching fonts!')
     file_list = os.listdir(fonts_dir)
@@ -212,45 +189,13 @@ def main():
     import tensorflow as tf
     from tensorflow_utils import CharacterTFRecordDataset
 
-    entries = []
+    dataset_metadata = DatasetMetadata(
+        label_file.source,
+        label_file.content,
+        label_file.labels,
+    )
 
-    dataset_metadata = {
-        'record_summary': {
-            'number_of_records': 0,
-        },
-        'dataset': [
-            # The data will be append to here to reflect the order in
-            # the tfrecord file.
-
-            # This record object does not contain the actual image and
-            # we shouldn't store the image in here because the number
-            # of images and their total size will easily eat all our
-            # RAM (depend on the size of dataset).
-
-            # Reference record format:
-            # {'hash': 'MD5', 'character': 'あ', 'font_name': 'HGKyokashotai_Medium'}
-
-            # I record these information only so that we can
-            # somehow inpsect the dataset and check some of them to be
-            # invalid. We can come back and skip/remove this entry next
-            # time we process the data.
-            # TODO create a web interface to inspect the dataset
-        ],
-        # record format for `invalid_records` same as `dataset` above
-        # after we implement the web interface for inspection, the
-        # selected invalid image will be moved from `dataset` above to
-        # here
-        'invalid_records': [],
-        'known_unsupported_combination': {
-            # record format {'character': 'あ', 'font_name': 'HGKyokashotai_Medium'}
-            # we may still need to inspect all these combination that
-            # have been filtered by our runtime.
-            'not_in_cmap': [],
-            'give_blank_image': [],
-        }
-    }
-
-    with tf.io.TFRecordWriter(dataset_filepath) as tfrecord_writer:
+    with tf.io.TFRecordWriter(tfrecord_filepath) as tfrecord_writer:
         # create task list to have progress bar with `tqdm`
         # TODO shuffle dataset
         # TODO split dataset to small files if it is too large (>100MB)
@@ -261,17 +206,17 @@ def main():
 
             if not c in font.supported_chars:
                 warn(f'Skipping {c} with {font.name}!')
-                dataset_metadata['known_unsupported_combination']['not_in_cmap'].append({
-                    'character': c,
-                    'font_name': font.name,
+                dataset_metadata.unsupported_combinations.append({
+                    'char': c,
+                    'font': font.name,
                 })
                 continue
 
             image = render_image(c, font, image_size)
             if image is None:
-                dataset_metadata['known_unsupported_combination']['give_blank_image'].append({
-                    'character': c,
-                    'font_name': font.name,
+                dataset_metadata.blank_combinations.append({
+                    'char': c,
+                    'font': font.name,
                 })
                 continue
 
@@ -279,15 +224,18 @@ def main():
             image.save(buffer, format='PNG')
             encoded_image = buffer.getvalue()
 
-            desc = f'{c} grayscale image created with font {font.name} at font size {font.size}.'
+            desc = (
+                f'{c} grayscale image created with font {font.name} at '
+                f'font size {font.size}.'
+            )
+
             ts = int(time.time())
             hash = hash_md5(f'{desc}{ts}'.encode('utf-8'))
 
-            dataset_metadata['record_summary']['number_of_records'] += 1
-            dataset_metadata['dataset'].append({
+            dataset_metadata.records.append({
                 'hash': hash,
-                'character': c,
-                'font_name': font.name,
+                'char': c,
+                'font': font.name,
             })
 
             record = CharacterTFRecordDataset.serialize_record(
@@ -304,14 +252,15 @@ def main():
 
             tfrecord_writer.write(record)
 
-    # https://docs.python.org/3/library/os.html#os.utime
-    ts = time.time()
-    os.utime(dataset_filepath, (ts, ts))
+    with open(metadata_filepath, mode='w', encoding='utf-8') as outfile:
+        json.dump(
+            obj=dataset_metadata.__dict__,
+            fp=outfile,
+            ensure_ascii=False,
+            indent=2,
+        )
 
-    with open(dataset_meta_filepath, mode='w', encoding='utf-8') as outfile:
-        json.dump(dataset_metadata, outfile, ensure_ascii=False, indent='  ')
-
-    os.utime(dataset_meta_filepath, (ts, ts))
+    info(f'Created dataset at {repr(dataset_dir)}')
 
 
 if __name__ == "__main__":
