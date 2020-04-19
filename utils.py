@@ -19,7 +19,7 @@ def timestamp_to_datetime(ts: float):
     return time.strftime('%Y-%m-%d_%H-%M-%S', time.gmtime(ts))
 
 
-@timeit
+@measure_exec_time
 def normalize_filename(filename):
     """Replace invalid filename characters with underscore."""
     return re.sub(
@@ -70,7 +70,7 @@ class Font:
         return repr((self.name, self.size, self.path))
 
 
-@timeit
+@measure_exec_time
 def fetch_font(font_file: str, font_size=64, characters=list()):
     pillow_font = ImageFont.truetype(font=font_file, size=font_size)
     font_name = '_'.join(pillow_font.getname())
@@ -88,7 +88,7 @@ def fetch_font(font_file: str, font_size=64, characters=list()):
     return Font(font_name, pillow_font, font_size, font_file, supported_chars)
 
 
-@timeit
+@measure_exec_time
 def render_image(c: str, font: Font, image_size=64) -> Image:
     pillow_font = font.font
 
@@ -176,7 +176,7 @@ def render_image(c: str, font: Font, image_size=64) -> Image:
     return canvas.crop(image_bounding_box)
 
 
-@timeit
+@measure_exec_time
 def backup_file_by_modified_date(infile: str):
     if not os.path.exists(infile):
         raise Exception(f'{infile} does not exist!')
@@ -195,14 +195,14 @@ def backup_file_by_modified_date(infile: str):
     return backup_filepath
 
 
-@timeit
+@measure_exec_time
 def hash_md5(s: str):
     m = hashlib.md5()
     m.update(s)
     return m.digest().hex().upper()
 
 
-@timeit
+@measure_exec_time
 def hash_sha256(s: str):
     m = hashlib.sha256()
     m.update(s)

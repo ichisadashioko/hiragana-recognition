@@ -18,7 +18,7 @@ from argtypes import *
 from serializable import *
 
 
-@timeit
+@measure_exec_time
 def main():
 
     parser = argparse.ArgumentParser(
@@ -187,7 +187,7 @@ def main():
     # import tensorflow takes a lot of time so I put it here to improve
     # start up time
     import tensorflow as tf
-    from tensorflow_utils import CharacterTFRecordDataset
+    from tensorflow_utils import TFRSerDes
 
     dataset_metadata = DatasetMetadata(
         label_file.source,
@@ -238,7 +238,7 @@ def main():
                 'font': font.name,
             })
 
-            record = CharacterTFRecordDataset.serialize_record(
+            record = TFRSerDes.serialize_record(
                 hash=hash,
                 character=c,
                 width=image_size,

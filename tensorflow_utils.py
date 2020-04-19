@@ -16,7 +16,7 @@ from utils import *
 # compatible with tf.Example.
 
 
-@timeit
+@measure_exec_time
 def _bytes_feature(value):
     """Returns a bytes_list from a string / byte."""
     if isinstance(value, type(tf.constant(0))):
@@ -25,48 +25,52 @@ def _bytes_feature(value):
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
 
-@timeit
+@measure_exec_time
 def _float_feature(value):
     """Returns a float_list from a float / double."""
     return tf.train.Feature(float_list=tf.train.FloatList(value=[value]))
 
 
-@timeit
+@measure_exec_time
 def _int64_feature(value):
     """Returns an int64_list from a bool / enum / int / uint."""
     return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
 
 
-class CharacterTFRecordDataset:
+class TFRSerDes:
+    """TFRecord serializer/deserializer
+
+    naming source: https://en.wikipedia.org/wiki/SerDes
+    """
     ENCODING = 'utf-8'
     # a unique hash for each record by apply <> hashing a set of
     # properties and the timestamp at the creation time. This way we
     # can easily identify each records.
-    HASH_FEATURE_NAME = 'HASH'
-    CHARACTER_FEATURE_NAME = 'CHARACTER'
-    IMAGE_WIDTH_FEATURE_NAME = 'WIDTH'
-    IMAGE_HEIGHT_FEATURE_NAME = 'HEIGHT'
-    IMAGE_DEPTH_FEATURE_NAME = 'DEPTH'
-    PNG_IMAGE_FEATURE_NAME = 'PNG_IMAGE'
-    FONT_SIZE_FEATURE_NAME = 'FONT_SIZE'
-    FONT_NAME_FEATURE_NAME = 'FONT_NAME'
-    DESCRIPTION_FEATURE_NAME = 'DESCRIPTION'
+    HASH_KEY = 'HASH'
+    CHARACTER_KEY = 'CHARACTER'
+    IMAGE_WIDTH_KEY = 'WIDTH'
+    IMAGE_HEIGHT_KEY = 'HEIGHT'
+    IMAGE_DEPTH_KEY = 'DEPTH'
+    IMAGE_KEY = 'PNG_IMAGE'
+    FONT_SIZE_KEY = 'FONT_SIZE'
+    FONT_NAME_KEY = 'FONT_NAME'
+    DESCRIPTION_KEY = 'DESCRIPTION'
 
     FEATURE_DESC = {
-        HASH_FEATURE_NAME: tf.io.FixedLenFeature([], tf.string),
-        CHARACTER_FEATURE_NAME: tf.io.FixedLenFeature([], tf.string),
-        IMAGE_WIDTH_FEATURE_NAME: tf.io.FixedLenFeature([], tf.int64),
-        IMAGE_HEIGHT_FEATURE_NAME: tf.io.FixedLenFeature([], tf.int64),
-        IMAGE_DEPTH_FEATURE_NAME: tf.io.FixedLenFeature([], tf.int64),
-        PNG_IMAGE_FEATURE_NAME: tf.io.FixedLenFeature([], tf.string),
-        FONT_SIZE_FEATURE_NAME: tf.io.FixedLenFeature([], tf.int64),
-        FONT_NAME_FEATURE_NAME: tf.io.FixedLenFeature([], tf.string),
-        DESCRIPTION_FEATURE_NAME: tf.io.FixedLenFeature([], tf.string),
+        HASH_KEY: tf.io.FixedLenFeature([], tf.string),
+        CHARACTER_KEY: tf.io.FixedLenFeature([], tf.string),
+        IMAGE_WIDTH_KEY: tf.io.FixedLenFeature([], tf.int64),
+        IMAGE_HEIGHT_KEY: tf.io.FixedLenFeature([], tf.int64),
+        IMAGE_DEPTH_KEY: tf.io.FixedLenFeature([], tf.int64),
+        IMAGE_KEY: tf.io.FixedLenFeature([], tf.string),
+        FONT_SIZE_KEY: tf.io.FixedLenFeature([], tf.int64),
+        FONT_NAME_KEY: tf.io.FixedLenFeature([], tf.string),
+        DESCRIPTION_KEY: tf.io.FixedLenFeature([], tf.string),
     }
 
     # reference https://docs.python.org/3/library/functions.html#classmethod
     @classmethod
-    @timeit
+    @measure_exec_time
     def serialize_record(
         cls,
         hash: str,
@@ -87,15 +91,15 @@ class CharacterTFRecordDataset:
         # create a dictionary mappin the feature name to the
         # tf.Example-compatible data type.
         feature_dict = {
-            cls.HASH_FEATURE_NAME: _bytes_feature(encoded_hash),
-            cls.CHARACTER_FEATURE_NAME: _bytes_feature(encoded_character),
-            cls.IMAGE_WIDTH_FEATURE_NAME: _int64_feature(width),
-            cls.IMAGE_HEIGHT_FEATURE_NAME: _int64_feature(height),
-            cls.IMAGE_DEPTH_FEATURE_NAME: _int64_feature(depth),
-            cls.PNG_IMAGE_FEATURE_NAME: _bytes_feature(image),
-            cls.FONT_SIZE_FEATURE_NAME: _int64_feature(font_size),
-            cls.FONT_NAME_FEATURE_NAME: _bytes_feature(encoded_font_name),
-            cls.DESCRIPTION_FEATURE_NAME: _bytes_feature(encoded_desc),
+            cls.HASH_KEY: _bytes_feature(encoded_hash),
+            cls.CHARACTER_KEY: _bytes_feature(encoded_character),
+            cls.IMAGE_WIDTH_KEY: _int64_feature(width),
+            cls.IMAGE_HEIGHT_KEY: _int64_feature(height),
+            cls.IMAGE_DEPTH_KEY: _int64_feature(depth),
+            cls.IMAGE_KEY: _bytes_feature(image),
+            cls.FONT_SIZE_KEY: _int64_feature(font_size),
+            cls.FONT_NAME_KEY: _bytes_feature(encoded_font_name),
+            cls.DESCRIPTION_KEY: _bytes_feature(encoded_desc),
         }
 
         # create a Features message using tf.train.Example
@@ -106,7 +110,7 @@ class CharacterTFRecordDataset:
         return example_proto.SerializeToString()
 
     @classmethod
-    @timeit
+    @measure_exec_time
     def read_record(cls, example_proto):
         # Parse the input tf.Example proto using the feature description
         # dictionary

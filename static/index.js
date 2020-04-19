@@ -4,11 +4,16 @@ const logContainer = document.getElementById('log-container')
 const logElement = document.getElementById('log')
 const datasetsDropdown = document.getElementById('datasets')
 const labelsContainer = document.getElementById('labels')
+const imageContainer = document.getElementById('images')
 
-/**@type {{name: string, metadata: {source: string, content: string, labels: string[]}}} */
+/** @type {{name: string, metadata: {source: string, content: string, labels: string[]}}} */
 var workingDataset = null
-/**@type {HTMLElement[]} */
+
+/** @type {HTMLElement[]} */
 var labelElements = []
+
+/** @type {{dataset: string, label: string, records: {hash: string, char: string, font: string}[]}}*/
+var workingLabel = null
 
 /**
  * Write log to HTML element.
@@ -23,6 +28,11 @@ function info(obj) {
         // console.log(obj_str)
         logElement.textContent += obj_str + '\n'
     }
+
+    logContainer.scrollTo({
+        top: logElement.clientHeight,
+        left: 0,
+    })
 }
 
 /**
@@ -36,6 +46,90 @@ function clearChildNodes(e) {
     }
 }
 
+
+/**
+ * 
+ * @param {string} hash the image hash
+ * @param {(imageData: string) => void} cb 
+ */
+function loadImage(hash, cb) {
+    if (workingDataset && workingLabel) {
+        let datasetName = workingDataset.name
+        let url = `/images/${datasetName}/${hash}`
+
+        let xhr = new XMLHttpRequest()
+
+        xhr.addEventListener('load', function (ev) {
+            console.log(ev)
+            console.log(this)
+
+            if (this.status === 200) {
+                /** @type {{image: string}} */
+                let resObj = JSON.parse(this.responseText)
+                console.log(resObj)
+                info(resObj)
+
+                if (cb) {
+                    cb(resObj.image)
+                }
+            }
+        })
+
+        xhr.open('GET', url)
+        xhr.send()
+    }
+}
+
+/**
+ * Load the label information.
+ * 
+ * @param {string} label the label character
+ */
+function loadRecords(label) {
+    if (workingDataset) {
+        workingLabel = null
+
+        let url = `${DATASETS_API_URL}/${workingDataset.name}/${label}`
+
+        let xhr = new XMLHttpRequest()
+
+        xhr.addEventListener('load', function (ev) {
+            console.log(ev)
+            console.log(this)
+
+            if (this.status === 200) {
+                let resObj = JSON.parse(this.responseText)
+                info(resObj)
+
+                workingLabel = resObj
+
+                for (let i = 0, n = workingLabel.records.length; i < n; i++) {
+                    let record = workingLabel.records[i]
+
+                    let imageElement = document.createElement('img')
+                    imageElement.title = `${record.char} - ${record.font} - ${record.hash}`
+                    imageContainer.appendChild(imageElement)
+
+                    let image_hash = record.hash
+
+                    loadImage(image_hash, function (imageData) {
+                        let dataUrl = `data:image/png;base64,${imageData}`
+                        imageElement.src = dataUrl
+
+                    })
+
+                    break
+                }
+            }
+        })
+
+        xhr.open('GET', url)
+        xhr.send()
+    } else {
+        throw Error('Current working dataset is not available!')
+    }
+}
+
 function showLabels() {
     clearChildNodes(labelsContainer)
     labelElements = []
@@ -45,6 +139,17 @@ function showLabels() {
             let labelElement = document.createElement('button')
             labelElement.className = 'label'
             labelElement.textContent = labels[i]
+
+            labelElement.addEventListener('click', function (ev) {
+                labelElements.forEach(function (element) {
+                    if (element === labelElement) {
+                        element.classList.add('active')
+                        loadRecords(element.textContent)
+                    } else {
+                        element.classList.remove('active')
+                    }
+                })
+            })
 
             labelsContainer.appendChild(labelElement)
             labelElements.push(labelElement)
@@ -63,17 +168,20 @@ function loadDataset(name) {
     let xhr = new XMLHttpRequest()
 
     xhr.addEventListener('load', function (ev) {
+        console.log(ev)
         console.log(this)
 
-        info(this.responseText)
+        if (this.status === 200) {
+            info(this.responseText)
 
-        /**@type {{name: string, metadata: {source: string, content: string, labels: string[]}}} */
-        let response = JSON.parse(this.responseText)
-        console.log(response)
-        info(response)
+            /**@type {{name: string, metadata: {source: string, content: string, labels: string[]}}} */
+            let response = JSON.parse(this.responseText)
+            console.log(response)
+            info(response)
 
-        workingDataset = response
-        showLabels()
+            workingDataset = response
+            showLabels()
+        }
     })
 
     xhr.open('GET', url)
@@ -81,30 +189,36 @@ function loadDataset(name) {
 }
 
 function loadDatasets() {
+    workingDataset = null
+    workingLabel = null
+
     let xhr = new XMLHttpRequest()
 
     xhr.addEventListener('load', function (ev) {
         console.log(ev)
         console.log(this)
-        info(this.responseText)
 
-        // remove all elements from the dropdown to populate our data
-        clearChildNodes(datasetsDropdown)
+        if (this.status === 200) {
+            info(this.responseText)
 
-        /**@type {Array<string>} */
-        let datasets = JSON.parse(this.responseText).datasets
-        for (let i = 0, n = datasets.length; i < n; i++) {
-            let datasetName = datasets[i]
+            // remove all elements from the dropdown to populate our data
+            clearChildNodes(datasetsDropdown)
 
-            let optionElement = document.createElement('option')
-            optionElement.value = datasetName
-            optionElement.textContent = datasetName
+            /**@type {Array<string>} */
+            let datasets = JSON.parse(this.responseText).datasets
+            for (let i = 0, n = datasets.length; i < n; i++) {
+                let datasetName = datasets[i]
 
-            datasetsDropdown.appendChild(optionElement)
-        }
+                let optionElement = document.createElement('option')
+                optionElement.value = datasetName
+                optionElement.textContent = datasetName
 
-        if (datasets.length > 0) {
-            loadDataset(datasets[0])
+                datasetsDropdown.appendChild(optionElement)
+            }
+
+            if (datasets.length > 0) {
+                loadDataset(datasets[0])
+            }
         }
     })
 

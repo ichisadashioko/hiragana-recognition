@@ -26,7 +26,24 @@ body {
     background-color: inherit;
 }
 
-#labels {}
+#main {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    display: grid;
+    grid-template-areas: "names images" "labels images";
+    grid-template-columns: 1fr 4fr;
+    grid-template-rows: 2em auto;
+}
+
+#datasets {
+    grid-area: names;
+}
+
+#labels {
+    grid-area: labels;
+    overflow: scroll;
+}
 
 .label {
     font-size: 2em;
@@ -34,4 +51,8 @@ body {
 
 .label.active {
     background-color: #00ff00;
+}
+
+#images {
+    grid-area: images;
 }

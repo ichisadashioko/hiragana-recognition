@@ -26,7 +26,7 @@ class TerminateColor:
 def info(*args, **kwargs):
     """Loging info to stdout."""
     # https://stackoverflow.com/a/287944/8364403
-    print(f'[{TerminateColor.OKBLUE}INFO{TerminateColor.ENDC}] ', end='')
+    print(f'[{TerminateColor.OKGREEN}INFO{TerminateColor.ENDC}] ', end='')
     print(*args, **kwargs)
 
 
@@ -34,11 +34,18 @@ def warn(*args, **kwargs):
     print(f'[{TerminateColor.WARNING}WARNING{TerminateColor.ENDC}] ', end='')
     print(*args, **kwargs)
 
+
 def error(*args, **kwargs):
     print(f'[{TerminateColor.FAIL}ERROR{TerminateColor.ENDC}] ', end='')
     print(*args, **kwargs)
 
-def timeit(func: Callable):
+
+def debug(*args, **kwargs):
+    print(f'[{TerminateColor.OKBLUE}DEBUG{TerminateColor.ENDC}] ', end='')
+    print(*args, **kwargs)
+
+
+def measure_exec_time(func: Callable):
     """
     Decorator for measuring function execution time and log to file to
     visualize/profiling later.

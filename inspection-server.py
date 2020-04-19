@@ -3,7 +3,9 @@ import sys
 import time
 import re
 import json
+import base64
 import argparse
+from typing import List, Dict, Iterable, Any
 
 from tornado.ioloop import IOLoop
 from tornado.web import Application, RequestHandler, StaticFileHandler
@@ -16,8 +18,10 @@ from logger import *
 from utils import *
 from argtypes import *
 from serializable import *
+from tensorflow_utils import *
 
 datasets = []
+images_cache: List[Dict[str, str]] = []
 
 
 class Dataset:
@@ -42,6 +46,8 @@ class DatasetsApi(RequestHandler):
 
 class DatasetApi(RequestHandler):
     def get(self, name: str):
+        debug(f'Dataset name: {repr(name)}')
+
         for dataset in datasets:
             if name == dataset.name:
                 self.write({
@@ -62,6 +68,90 @@ class DatasetApi(RequestHandler):
         })
 
 
+class LabelInfoApi(RequestHandler):
+    def get(self, dataset_name: str, label: str):
+
+        debug(f'Getting info for {repr(label)} in {repr(dataset_name)}')
+
+        for dataset in datasets:
+            if dataset_name == dataset.name:
+                records = []
+                for record in dataset.dataset_metadata.records:
+                    if record['char'] == label:
+                        records.append(record)
+
+                self.write({
+                    'dataset': dataset_name,
+                    'label': label,
+                    'records': records,
+                })
+                return
+
+        self.clear()
+        self.set_status(404)
+        self.write({
+            'message': f'Cannot find dataset {repr(name)}!'
+        })
+
+
+@measure_exec_time
+def load_image(tfrecord_filepath: str, image_hash: str) -> bytes:
+    if not os.path.exists(tfrecord_filepath):
+        error(f'{tfrecord_filepath} does not exist!')
+        return
+
+    try:
+        raw_dataset = tf.data.TFRecordDataset(tfrecord_filepath)
+        records: Iterable[Dict[str, Any]] = raw_dataset.map(
+            TFRSerDes.read_record
+        )
+
+        for record in records:
+            hash_feature = record[TFRSerDes.HASH_KEY]
+            hash_bytes: bytes = hash_feature.numpy()
+            record_hash = hash_bytes.decode(TFRSerDes.ENCODING)
+            if image_hash == record_hash:
+                image_data: bytes = record[TFRSerDes.IMAGE_KEY].numpy()
+
+                return image_data
+    except Exception as ex:
+        error(repr(ex))
+        traceback.print_exc()
+
+
+class ImageHandler(RequestHandler):
+    def get(self, dataset_name, image_hash):
+        for dataset in datasets:
+            if dataset_name == dataset.name:
+
+                image = load_image(dataset.tfrecord_filepath, image_hash)
+
+                if image is not None:
+                    base64_image = base64.encodebytes(image).decode('utf-8')
+                    self.write({
+                        'image': base64_image,
+                    })
+
+                else:
+                    self.clear()
+                    self.set_status(404)
+
+                    message = f'Cannot find image with hash {repr(image_hash)} in dataset {dataset_name}!'
+                    warn(message)
+
+                    self.write({
+                        'message': message,
+                    })
+
+                return
+
+        self.clear()
+        self.set_status(404)
+        self.write({
+            'message': f'Cannot find dataset {repr(dataset_name)}!'
+        })
+
+
 class IndexHandler(RequestHandler):
     def get(self):
         self.redirect('/index.html')
@@ -71,7 +161,9 @@ def make_app():
     return Application(
         handlers=[
             (r'/api/datasets', DatasetsApi),
-            (r'/api/datasets/([^/]+)?', DatasetApi),
+            (r'/api/datasets/([^/]+)', DatasetApi),
+            (r'/api/datasets/([^/]+)/([^/]+)', LabelInfoApi),
+            (r'/images/([^/]+)/([^/]+)', ImageHandler),
             (r'/', IndexHandler),
             (r'/(.*)', StaticFileHandler, {'path': './static'}),
         ],

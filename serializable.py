@@ -1,3 +1,5 @@
+from typing import List, Dict
+
 
 class LabelFile:
     def __init__(self, source: str, content: str, labels: list):
@@ -59,7 +61,7 @@ class DatasetMetadata:
         source: str,
         content: str,
         labels: list,
-        records=[],
+        records: List[Dict[str, str]] = [],
         invalid_records=[],
         blank_combinations=[],
         unsupported_combinations=[],
