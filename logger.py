@@ -35,7 +35,7 @@ def warn(*args, **kwargs):
     print(*args, **kwargs)
 
 def error(*args, **kwargs):
-    print(f'[{TerminateColor.FAIL}WARNING{TerminateColor.ENDC}] ', end='')
+    print(f'[{TerminateColor.FAIL}ERROR{TerminateColor.ENDC}] ', end='')
     print(*args, **kwargs)
 
 def timeit(func: Callable):

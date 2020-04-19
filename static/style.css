@@ -1,4 +1,37 @@
 body {
     margin: 0;
     padding: 0;
+    max-height: 100vh;
+    overflow: hidden;
+}
+
+* {
+    color: #ffffff;
+    background-color: #000000;
+}
+
+#log-container {
+    position: absolute;
+    width: 100vw;
+    height: 30vh;
+    bottom: 0;
+    overflow-x: scroll;
+    overflow-y: scroll;
+    color: #00ff00;
+    background-color: #222222;
+}
+
+#log {
+    color: inherit;
+    background-color: inherit;
+}
+
+#labels {}
+
+.label {
+    font-size: 2em;
+}
+
+.label.active {
+    background-color: #00ff00;
 }

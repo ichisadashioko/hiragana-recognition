@@ -15,7 +15,12 @@ class LabelFile:
 
         for key in sample.__dict__:
             if key not in obj:
-                raise Exception(f'{obj} does not contain key {repr(key)}!')
+                obj_str = repr(obj)
+                if len(obj_str) > 80:
+                    obj_str = obj_str[:40] + '...' + obj_str[-40:]
+
+                raise Exception(f'{obj_str} does not contain key {repr(key)}!')
+
             args[key] = obj[key]
 
         return LabelFile(**args)
@@ -77,7 +82,11 @@ class DatasetMetadata:
 
         for key in sample.__dict__:
             if key not in obj:
-                raise Exception(f'{obj} does not contain key {repr(key)}!')
+                obj_str = repr(obj)
+                if len(obj_str) > 80:
+                    obj_str = obj_str[:40] + '...' + obj_str[-40:]
+
+                raise Exception(f'{obj_str} does not contain key {repr(key)}!')
             args[key] = obj[key]
 
         # now I feel the need of writing some tests

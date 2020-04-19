@@ -62,11 +62,17 @@ class DatasetApi(RequestHandler):
         })
 
 
+class IndexHandler(RequestHandler):
+    def get(self):
+        self.redirect('/index.html')
+
+
 def make_app():
     return Application(
         handlers=[
             (r'/api/datasets', DatasetsApi),
             (r'/api/datasets/([^/]+)?', DatasetApi),
+            (r'/', IndexHandler),
             (r'/(.*)', StaticFileHandler, {'path': './static'}),
         ],
         debug=True,
@@ -151,9 +157,11 @@ def main():
     try:
         info(f'Server starting at http://localhost:{port}/index.html')
         IOLoop.current().start()
-    except KeyboardInterrupt:
-        info('Shutting down server.')
-        IOLoop.current().stop()
+    except Exception as ex:
+        warn(repr(ex))
+
+    info('Shutting down server.')
+    IOLoop.current().stop()
 
 
 if __name__ == '__main__':
