@@ -7,18 +7,22 @@ import base64
 import argparse
 from typing import List, Dict, Iterable, Any
 
+import tornado
 from tornado.ioloop import IOLoop
 from tornado.web import Application, RequestHandler, StaticFileHandler
-
 import numpy as np
-import tensorflow as tf
 
-from constants import *
-from logger import *
-from utils import *
-from argtypes import *
 from serializable import *
-from tensorflow_utils import *
+from argtypes import *
+from utils import *
+from logger import *
+from constants import *
+
+import tensorflow as tf  # noqa: E402
+# disable GPU because it takes too long for loading
+tf.config.experimental.set_visible_devices([], 'GPU')  # noqa: E402
+
+from tensorflow_utils import *  # noqa: E402
 
 datasets = []
 images_cache: List[Dict[str, str]] = []
@@ -102,9 +106,7 @@ def load_image(tfrecord_filepath: str, image_hash: str) -> bytes:
 
     try:
         raw_dataset = tf.data.TFRecordDataset(tfrecord_filepath)
-        records: Iterable[Dict[str, Any]] = raw_dataset.map(
-            TFRSerDes.read_record
-        )
+        records: Iterable[Dict[str, Any]] = raw_dataset.map(TFRSerDes.read_record)  # noqa
 
         for record in records:
             hash_feature = record[TFRSerDes.HASH_KEY]
@@ -117,6 +119,49 @@ def load_image(tfrecord_filepath: str, image_hash: str) -> bytes:
     except Exception as ex:
         error(repr(ex))
         traceback.print_exc()
+
+
+@measure_exec_time
+def load_images(tfrecord_filepath: str, hash_list: List[str]) -> List[Dict[str, str]]:
+    """Get multiple images from the TFRecord file.
+
+    This method will be more efficient than retrieving one image at a
+    time because before shuffling records with the same labels will be
+    next to each others.
+    """
+    if not os.path.exists(tfrecord_filepath):
+        error(f'{tfrecord_filepath} does not exist!')
+        return []
+
+    remain_hashes = [hash for hash in hash_list]
+    images = []
+    try:
+        raw_dataset = tf.data.TFRecordDataset(tfrecord_filepath)
+        records: Iterable[Dict[str, Any]] = raw_dataset.map(TFRSerDes.read_record)  # noqa
+
+        for record in records:
+            if len(remain_hashes) > 0:
+                hash_feature = record[TFRSerDes.HASH_KEY]
+                hash_bytes: bytes = hash_feature.numpy()
+                record_hash = hash_bytes.decode(TFRSerDes.ENCODING)
+                if record_hash in remain_hashes:
+                    image_data: bytes = record[TFRSerDes.IMAGE_KEY].numpy()
+
+                    image = {
+                        'hash': record_hash,
+                        'image_data': base64.encodebytes(image_data).decode('utf-8'),
+                    }
+
+                    images.append(image)
+                    remain_hashes.remove(record_hash)
+            else:
+                break
+
+    except Exception as ex:
+        error(repr(ex))
+        traceback.print_exc()
+
+    return images
 
 
 class ImageHandler(RequestHandler):
@@ -152,6 +197,54 @@ class ImageHandler(RequestHandler):
         })
 
 
+class ImageApi(RequestHandler):
+
+    def bad_request(self, message: str):
+        self.clear()
+        self.set_status(400)  # Bad Request
+        self.write({'message': message})
+
+    def post(self, name):
+        """Get images from dataset with list of image's hashes.
+
+        name : dataset's name
+        """
+        body = self.request.body
+        debug(f'Request body: {body}')
+        if len(body) == 0:
+            self.bad_request('Request body must be a list of string!')
+            return
+
+        try:
+            data = tornado.escape.json_decode(body)
+        except Exception as ex:
+            error(ex)
+            traceback.print_exc()
+
+            self.bad_request('Body data is not valid JSON data!')
+            return
+
+        if not isinstance(data, list):
+            self.bad_request('Body data is not a list!')
+            return
+
+        for o in data:
+            if not isinstance(o, str):
+                self.bad_request('The list must only contain string!')
+                return
+
+        for dataset in datasets:
+            if name == dataset.name:
+                images = load_images(dataset.tfrecord_filepath, data)
+                # debug(images)
+                self.write({'images': images})
+                return
+
+        self.clear()
+        self.set_status(404)
+        self.write({'message': f'Cannot not find dataset {name}!'})
+
+
 class IndexHandler(RequestHandler):
     def get(self):
         self.redirect('/index.html')
@@ -163,6 +256,7 @@ def make_app():
             (r'/api/datasets', DatasetsApi),
             (r'/api/datasets/([^/]+)', DatasetApi),
             (r'/api/datasets/([^/]+)/([^/]+)', LabelInfoApi),
+            (r'/api/images/([^/]+)', ImageApi),
             (r'/images/([^/]+)/([^/]+)', ImageHandler),
             (r'/', IndexHandler),
             (r'/(.*)', StaticFileHandler, {'path': './static'}),

@@ -48,13 +48,17 @@ function clearChildNodes(e) {
 
 
 /**
+ * Example usage:
  * 
+ * @example
+ * requestImage(workingDataset.name, workingLabel.records[0].hash, (s)=>console.log(s))
+ * 
+ * @param {string} datasetName the dataset name
  * @param {string} hash the image hash
  * @param {(imageData: string) => void} cb 
  */
-function loadImage(hash, cb) {
+function requestImage(datasetName, hash, cb) {
     if (workingDataset && workingLabel) {
-        let datasetName = workingDataset.name
         let url = `/images/${datasetName}/${hash}`
 
         let xhr = new XMLHttpRequest()
@@ -80,8 +84,53 @@ function loadImage(hash, cb) {
     }
 }
 
+function loadImages() {
+    if (workingDataset && workingLabel) {
+
+        /** @type {string[]} */
+        let imageHashes = []
+        for (let i = 0, n = workingLabel.records.length; i < n; i++) {
+            let record = workingLabel.records[i]
+            imageHashes.push(record.hash)
+        }
+
+        let bodyData = JSON.stringify(imageHashes)
+        console.log(bodyData)
+
+        let url = `/api/images/${workingDataset.name}`
+        let xhr = new XMLHttpRequest()
+        xhr.addEventListener('load', function (ev) {
+            console.log(ev)
+            console.log(this)
+
+            if (this.status === 200) {
+                /** @type {{ images: {hash: string, image_data: string}[]}} */
+                let resObj = JSON.parse(this.responseText)
+                info(resObj)
+
+                let images = resObj.images
+
+                // sometimes, this for loop makes the UI freeze a while
+                for (let i = 0, n = images.length; i < n; i++) {
+                    let imageHash = images[i].hash
+                    let imageData = images[i].image_data
+
+                    let imageElement = document.createElement('img')
+                    imageElement.title = imageHash
+                    imageElement.src = `data:image/png;base64,${imageData}`
+                    imageContainer.appendChild(imageElement)
+                }
+            }
+        })
+
+        xhr.open('POST', url)
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded')
+        xhr.send(bodyData)
+    }
+}
+
 /**
- * Load the label information.
+ * Load the records's information by label.
  * 
  * @param {string} label the label character
  */
@@ -102,24 +151,7 @@ function loadRecords(label) {
                 info(resObj)
 
                 workingLabel = resObj
-
-                for (let i = 0, n = workingLabel.records.length; i < n; i++) {
-                    let record = workingLabel.records[i]
-
-                    let imageElement = document.createElement('img')
-                    imageElement.title = `${record.char} - ${record.font} - ${record.hash}`
-                    imageContainer.appendChild(imageElement)
-
-                    let image_hash = record.hash
-
-                    loadImage(image_hash, function (imageData) {
-                        let dataUrl = `data:image/png;base64,${imageData}`
-                        imageElement.src = dataUrl
-
-                    })
-
-                    break
-                }
+                loadImages()
             }
         })
 

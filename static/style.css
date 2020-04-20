@@ -55,4 +55,5 @@ body {
 
 #images {
     grid-area: images;
+    overflow: scroll;
 }

@@ -17,7 +17,7 @@ def main():
     tracked_files = list(filter(lambda x: len(x) > 0, lines))
 
     for filepath in tracked_files:
-        os.system(f'dos2unix {filepath}')
+        os.system('dos2unix '+filepath)
 
 
 if __name__ == '__main__':
