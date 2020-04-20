@@ -20,7 +20,7 @@ var workingLabel = null
  * 
  * @param {any} obj 
  */
-function info(obj) {
+function logToUI(obj) {
     if (typeof obj === 'string') {
         logElement.textContent += obj + '\n'
     } else {
@@ -66,14 +66,14 @@ function requestImage(datasetName, hash, cb) {
     let xhr = new XMLHttpRequest()
 
     xhr.addEventListener('load', function (ev) {
-        console.log(ev)
-        console.log(this)
+        // console.log(ev)
+        // console.log(this)
 
         if (this.status === 200) {
             /** @type {{image: string}} */
             let resObj = JSON.parse(this.responseText)
             console.log(resObj)
-            info(resObj)
+            logToUI(resObj)
 
             if (cb) {
                 cb(resObj.image)
@@ -87,7 +87,10 @@ function requestImage(datasetName, hash, cb) {
 
 function loadImages() {
     if (workingDataset && workingLabel) {
+        // clear current showing images
+        clearChildNodes(imageContainer)
 
+        // get all the image hashes from the selected label
         /** @type {string[]} */
         let imageHashes = []
         for (let i = 0, n = workingLabel.records.length; i < n; i++) {
@@ -96,31 +99,33 @@ function loadImages() {
         }
 
         let bodyData = JSON.stringify(imageHashes)
-        console.log(bodyData)
+        // console.log(bodyData)
 
         let url = `/api/images/${workingDataset.name}`
         let xhr = new XMLHttpRequest()
         xhr.addEventListener('load', function (ev) {
-            console.log(ev)
-            console.log(this)
+            // console.log(ev)
+            // console.log(this)
 
             if (this.status === 200) {
                 /** @type {{ images: {hash: string, image_data: string}[]}} */
                 let resObj = JSON.parse(this.responseText)
-                info(resObj)
+                logToUI(resObj)
 
                 let images = resObj.images
+                // TODO check for if we miss any image
 
                 // sometimes, this for loop makes the UI freeze a while
-                for (let i = 0, n = images.length; i < n; i++) {
-                    let imageHash = images[i].hash
-                    let imageData = images[i].image_data
+                images.forEach(image => {
+                    let imageHash = image.hash
+                    let imageData = image.image_data
 
+                    // TODO attach hash, label, font data to title
                     let imageElement = document.createElement('img')
                     imageElement.title = imageHash
                     imageElement.src = `data:image/png;base64,${imageData}`
                     imageContainer.appendChild(imageElement)
-                }
+                });
             }
         })
 
@@ -144,12 +149,12 @@ function loadRecords(label) {
         let xhr = new XMLHttpRequest()
 
         xhr.addEventListener('load', function (ev) {
-            console.log(ev)
-            console.log(this)
+            // console.log(ev)
+            // console.log(this)
 
             if (this.status === 200) {
                 let resObj = JSON.parse(this.responseText)
-                info(resObj)
+                // logToUI(resObj)
 
                 workingLabel = resObj
                 loadImages()
@@ -201,16 +206,16 @@ function loadDataset(name) {
     let xhr = new XMLHttpRequest()
 
     xhr.addEventListener('load', function (ev) {
-        console.log(ev)
-        console.log(this)
+        // console.log(ev)
+        // console.log(this)
 
         if (this.status === 200) {
-            info(this.responseText)
+            logToUI(this.responseText)
 
             /**@type {{name: string, metadata: {source: string, content: string, labels: string[]}}} */
             let response = JSON.parse(this.responseText)
             console.log(response)
-            info(response)
+            logToUI(response)
 
             workingDataset = response
             showLabels()
@@ -222,17 +227,23 @@ function loadDataset(name) {
 }
 
 function loadDatasets() {
+    // clear the current dataset and label data
+    // probably only call this function to refresh the whole app
     workingDataset = null
     workingLabel = null
+    // clear all container
+    clearChildNodes(datasetsDropdown)
+    clearChildNodes(labelsContainer)
+    clearChildNodes(imageContainer)
 
     let xhr = new XMLHttpRequest()
 
     xhr.addEventListener('load', function (ev) {
-        console.log(ev)
-        console.log(this)
+        // console.log(ev)
+        // console.log(this)
 
         if (this.status === 200) {
-            info(this.responseText)
+            logToUI(this.responseText)
 
             // remove all elements from the dropdown to populate our data
             clearChildNodes(datasetsDropdown)
@@ -262,10 +273,10 @@ function loadDatasets() {
 loadDatasets()
 
 datasetsDropdown.addEventListener('change', function (ev) {
-    console.log(ev)
+    // console.log(ev)
     let selectedDataset = datasetsDropdown.value
     console.log(selectedDataset)
-    info(selectedDataset)
+    logToUI(selectedDataset)
 
     if (selectedDataset) {
         loadDataset(selectedDataset)
