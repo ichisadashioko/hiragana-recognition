@@ -85,6 +85,30 @@ function requestImage(datasetName, hash, cb) {
     xhr.send()
 }
 
+
+/**
+ * Add record's hash, font name, dataset name to the ImageElement.
+ * 
+ * Reference: https://developer.mozilla.org/en-US/docs/Learn/HTML/Howto/Use_data_attributes
+ * 
+ * @param {string} imageHash the image hash to retrieve relevant data from `workingLabel`
+ * @param {HTMLImageElement} imageElement the image element
+ */
+function attachDataToImage(imageHash, imageElement) {
+    if (workingDataset && workingLabel) {
+        let records = workingLabel.records
+        for (let i = 0, n = records.length; i < n; i++) {
+            let record = records[i]
+            if (imageHash === record.hash) {
+                imageElement.dataset.hash = record.hash
+                imageElement.dataset.char = record.char
+                imageElement.dataset.font = record.font
+                imageElement.title = `${record.char} - ${record.font} - ${record.hash}`
+            }
+        }
+    }
+}
+
 function loadImages() {
     if (workingDataset && workingLabel) {
         // clear current showing images
@@ -122,8 +146,8 @@ function loadImages() {
 
                     // TODO attach hash, label, font data to title
                     let imageElement = document.createElement('img')
-                    imageElement.title = imageHash
                     imageElement.src = `data:image/png;base64,${imageData}`
+                    attachDataToImage(imageHash, imageElement)
                     imageContainer.appendChild(imageElement)
                 });
             }
