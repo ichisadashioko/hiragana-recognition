@@ -48,6 +48,9 @@ function clearChildNodes(e) {
 
 
 /**
+ * Request a single image. DEPRECATED
+ * Maybe used for testing.
+ * 
  * Example usage:
  * 
  * @example
@@ -58,30 +61,28 @@ function clearChildNodes(e) {
  * @param {(imageData: string) => void} cb 
  */
 function requestImage(datasetName, hash, cb) {
-    if (workingDataset && workingLabel) {
-        let url = `/images/${datasetName}/${hash}`
+    let url = `/images/${datasetName}/${hash}`
 
-        let xhr = new XMLHttpRequest()
+    let xhr = new XMLHttpRequest()
 
-        xhr.addEventListener('load', function (ev) {
-            console.log(ev)
-            console.log(this)
+    xhr.addEventListener('load', function (ev) {
+        console.log(ev)
+        console.log(this)
 
-            if (this.status === 200) {
-                /** @type {{image: string}} */
-                let resObj = JSON.parse(this.responseText)
-                console.log(resObj)
-                info(resObj)
+        if (this.status === 200) {
+            /** @type {{image: string}} */
+            let resObj = JSON.parse(this.responseText)
+            console.log(resObj)
+            info(resObj)
 
-                if (cb) {
-                    cb(resObj.image)
-                }
+            if (cb) {
+                cb(resObj.image)
             }
-        })
+        }
+    })
 
-        xhr.open('GET', url)
-        xhr.send()
-    }
+    xhr.open('GET', url)
+    xhr.send()
 }
 
 function loadImages() {
