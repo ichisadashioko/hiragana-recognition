@@ -31,9 +31,18 @@ body {
     height: 100vh;
     overflow: hidden;
     display: grid;
-    grid-template-areas: "names images" "labels images";
-    grid-template-columns: 1fr 4fr;
+    grid-template-areas: "names resize-bar images" "labels resize-bar images";
+    grid-template-columns: 1fr 5px 4fr;
     grid-template-rows: 2em auto;
+}
+
+#resize-bar {
+    grid-area: resize-bar;
+    background-color: #00aa33;
+}
+
+#resize-bar:hover {
+    cursor: ew-resize;
 }
 
 #datasets {
