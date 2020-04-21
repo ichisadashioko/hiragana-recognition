@@ -32,7 +32,7 @@ body {
     overflow: hidden;
     display: grid;
     grid-template-areas: "names resize-bar images" "labels resize-bar images";
-    grid-template-columns: 1fr 5px 4fr;
+    grid-template-columns: 1fr 5px 1fr;
     grid-template-rows: 2em auto;
 }
 

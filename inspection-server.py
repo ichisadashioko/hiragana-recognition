@@ -210,7 +210,7 @@ class ImageApi(RequestHandler):
         name : dataset's name
         """
         body = self.request.body
-        debug(f'Request body: {body}')
+        # debug(f'Request body: {body}')
         if len(body) == 0:
             self.bad_request('Request body must be a list of string!')
             return

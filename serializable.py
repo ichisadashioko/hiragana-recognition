@@ -79,17 +79,25 @@ class DatasetMetadata:
         if not isinstance(obj, dict):
             raise Exception(f'{obj} is not a dict!')
 
+        required_keys = set(['source', 'content', 'labels', 'records'])
         sample = DatasetMetadata('', '', [])
+        all_keys = set(sample.__dict__.keys())
+        optional_keys = all_keys - required_keys
+
         args = {}
 
-        for key in sample.__dict__:
+        for key in required_keys:
             if key not in obj:
                 obj_str = repr(obj)
                 if len(obj_str) > 80:
                     obj_str = obj_str[:40] + '...' + obj_str[-40:]
 
                 raise Exception(f'{obj_str} does not contain key {repr(key)}!')
+
             args[key] = obj[key]
 
-        # now I feel the need of writing some tests
+        for key in optional_keys:
+            if key in obj:
+                args[key] = obj[key]
+
         return DatasetMetadata(**args)

@@ -134,13 +134,13 @@ function loadImages() {
             if (this.status === 200) {
                 /** @type {{ images: {hash: string, image_data: string}[]}} */
                 let resObj = JSON.parse(this.responseText)
-                logToUI(resObj)
+                // logToUI(resObj)
 
                 let images = resObj.images
                 // TODO check for if we miss any image
 
                 // sometimes, this for loop makes the UI freeze a while
-                images.forEach(image => {
+                images.forEach(function (image) {
                     let imageHash = image.hash
                     let imageData = image.image_data
 
@@ -234,14 +234,14 @@ function loadDataset(name) {
         // console.log(this)
 
         if (this.status === 200) {
-            logToUI(this.responseText)
+            // logToUI(this.responseText)
 
             /**@type {{name: string, metadata: {source: string, content: string, labels: string[]}}} */
-            let response = JSON.parse(this.responseText)
-            console.log(response)
-            logToUI(response)
+            let resObj = JSON.parse(this.responseText)
+            // console.log(resObj)
+            // logToUI(resObj)
 
-            workingDataset = response
+            workingDataset = resObj
             showLabels()
         }
     })
