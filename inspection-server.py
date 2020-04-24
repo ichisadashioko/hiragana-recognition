@@ -34,72 +34,32 @@ class Dataset:
         name: str,
         metadata_filepath: str,
         tfrecord_filepath: str,
-        dataset_metadata: DatasetMetadata,
+        metadata: DatasetMetadata,
     ):
         self.name = name
         self.metadata_filepath = metadata_filepath
         self.tfrecord_filepath = tfrecord_filepath
-        self.dataset_metadata = dataset_metadata
+        self.metadata = metadata
 
 
-class DatasetsApi(RequestHandler):
-    def get(self):
-        dataset_names = list(map(lambda dataset: dataset.name, datasets))
-        self.write({'datasets': dataset_names})
+def find_dataset(name: str) -> Dataset:
+    for dataset in datasets:
+        if name == dataset.name:
+            return dataset
+
+    return None
 
 
-class DatasetApi(RequestHandler):
-    def get(self, name: str):
-        debug(f'Dataset name: {repr(name)}')
-
-        for dataset in datasets:
-            if name == dataset.name:
-                self.write({
-                    'name': dataset.name,
-                    'metadata': {
-                        'source': dataset.dataset_metadata.source,
-                        'content': dataset.dataset_metadata.content,
-                        'labels': dataset.dataset_metadata.labels,
-                    },
-                })
-
-                return
-
-        self.clear()
-        self.set_status(404)
-        self.write({
-            'message': f'Cannot find dataset {repr(name)}!'
-        })
-
-
-class LabelInfoApi(RequestHandler):
-    def get(self, dataset_name: str, label: str):
-
-        debug(f'Getting info for {repr(label)} in {repr(dataset_name)}')
-
-        for dataset in datasets:
-            if dataset_name == dataset.name:
-                records = []
-                for record in dataset.dataset_metadata.records:
-                    if record['char'] == label:
-                        records.append(record)
-
-                self.write({
-                    'dataset': dataset_name,
-                    'label': label,
-                    'records': records,
-                })
-                return
-
-        self.clear()
-        self.set_status(404)
-        self.write({
-            'message': f'Cannot find dataset {repr(name)}!'
-        })
+def dataset_not_found(handler: RequestHandler, name: str):
+    handler.clear()
+    handler.set_status(404)
+    handler.write({
+        'message': f'Cannot find dataset {repr(name)}!'
+    })
 
 
 @measure_exec_time
-def load_image(tfrecord_filepath: str, image_hash: str) -> bytes:
+def load_image(tfrecord_filepath: str, hash: str) -> bytes:
     if not os.path.exists(tfrecord_filepath):
         error(f'{tfrecord_filepath} does not exist!')
         return
@@ -112,7 +72,7 @@ def load_image(tfrecord_filepath: str, image_hash: str) -> bytes:
             hash_feature = record[TFRSerDes.HASH_KEY]
             hash_bytes: bytes = hash_feature.numpy()
             record_hash = hash_bytes.decode(TFRSerDes.ENCODING)
-            if image_hash == record_hash:
+            if hash == record_hash:
                 image_data: bytes = record[TFRSerDes.IMAGE_KEY].numpy()
 
                 return image_data
@@ -164,37 +124,125 @@ def load_images(tfrecord_filepath: str, hash_list: List[str]) -> List[Dict[str, 
     return images
 
 
-class ImageHandler(RequestHandler):
-    def get(self, dataset_name, image_hash):
-        for dataset in datasets:
-            if dataset_name == dataset.name:
+class ListAvailableDatasetsApi(RequestHandler):
+    def get(self):
+        dataset_names = list(map(lambda dataset: dataset.name, datasets))
+        self.write({'datasets': dataset_names})
 
-                image = load_image(dataset.tfrecord_filepath, image_hash)
 
-                if image is not None:
-                    base64_image = base64.encodebytes(image).decode('utf-8')
-                    self.write({
-                        'image': base64_image,
-                    })
+class DatasetApi(RequestHandler):
+    def get(self, name: str):
+        debug(f'Dataset name: {repr(name)}')
 
-                else:
-                    self.clear()
-                    self.set_status(404)
+        dataset = find_dataset(name)
 
-                    message = f'Cannot find image with hash {repr(image_hash)} in dataset {dataset_name}!'
-                    warn(message)
+        if dataset is None:
+            dataset_not_found(self, name)
+            return
 
-                    self.write({
-                        'message': message,
-                    })
+        self.write({
+            'name': dataset.name,
+            'metadata': {
+                'source': dataset.metadata.source,
+                'content': dataset.metadata.content,
+                'labels': dataset.metadata.labels,
+                'invalid_records': dataset.metadata.invalid_records,
+            },
+        })
+
+
+class LabelInfoApi(RequestHandler):
+    def get(self, name: str, label: str):
+
+        debug(f'Getting info for {repr(label)} in {repr(name)}')
+
+        dataset = find_dataset(name)
+
+        if dataset is None:
+            dataset_not_found(self, name)
+            return
+
+        records = []
+        for record in dataset.metadata.records:
+            if record['char'] == label:
+                records.append(record)
+
+        self.write({
+            'dataset': name,
+            'label': label,
+            'records': records,
+        })
+
+
+class InvalidRecordApi(RequestHandler):
+    """Mark a record as invalid by its hash id."""
+
+    def get(self, name: str, hash: str):
+
+        info(f'Marking {hash} in {name} as invalid!')
+
+        dataset = find_dataset(name)
+
+        if dataset is None:
+            dataset_not_found(self, name)
+            return
+
+        metadata = dataset.metadata
+        records = metadata.records
+
+        for record in records:
+            if record['hash'] == hash:
+                metadata.invalid_records.append(hash)
+                # TODO save modified metadata
+                backup_filepath = backup_file_by_modified_date(
+                    dataset.metadata_filepath,
+                )
+
+                with open(dataset.metadata_filepath, mode='w', encoding='utf-8') as outfile:
+                    universal_dump(metadata.__dict__, outfile)
+
+                self.write({
+                    'record': record,
+                })
 
                 return
 
         self.clear()
         self.set_status(404)
         self.write({
-            'message': f'Cannot find dataset {repr(dataset_name)}!'
+            'message': f'Cannot find record with hash {repr(hash)}!'
         })
+
+
+class ImageHandler(RequestHandler):
+    """Pull out a single image from TFRecord file."""
+
+    def get(self, name: str, hash: str):
+
+        dataset = find_dataset(name)
+
+        if dataset is None:
+            dataset_not_found(self, name)
+            return
+
+        image = load_image(dataset.tfrecord_filepath, hash)
+
+        if image is not None:
+            base64_image = base64.encodebytes(image).decode('utf-8')
+            self.write({
+                'image': base64_image,
+            })
+
+        else:
+            self.clear()
+            self.set_status(404)
+
+            message = f'Cannot find image with hash {repr(hash)} in dataset {name}!'
+            warn(message)
+
+            self.write({
+                'message': message,
+            })
 
 
 class ImageApi(RequestHandler):
@@ -233,16 +281,15 @@ class ImageApi(RequestHandler):
                 self.bad_request('The list must only contain string!')
                 return
 
-        for dataset in datasets:
-            if name == dataset.name:
-                images = load_images(dataset.tfrecord_filepath, data)
-                # debug(images)
-                self.write({'images': images})
-                return
+        dataset = find_dataset(name)
 
-        self.clear()
-        self.set_status(404)
-        self.write({'message': f'Cannot not find dataset {name}!'})
+        if dataset is None:
+            dataset_not_found(self, name)
+            return
+
+        images = load_images(dataset.tfrecord_filepath, data)
+        # debug(images)
+        self.write({'images': images})
 
 
 class IndexHandler(RequestHandler):
@@ -253,10 +300,11 @@ class IndexHandler(RequestHandler):
 def make_app():
     return Application(
         handlers=[
-            (r'/api/datasets', DatasetsApi),
+            (r'/api/datasets', ListAvailableDatasetsApi),
             (r'/api/datasets/([^/]+)', DatasetApi),
             (r'/api/datasets/([^/]+)/([^/]+)', LabelInfoApi),
             (r'/api/images/([^/]+)', ImageApi),
+            (r'/api/invalid/([^/]+)/([^/]+)', InvalidRecordApi),
             (r'/images/([^/]+)/([^/]+)', ImageHandler),
             (r'/', IndexHandler),
             (r'/(.*)', StaticFileHandler, {'path': './static'}),
@@ -321,13 +369,14 @@ def main():
                 mode='r',
                 encoding='utf-8',
             ))
-            dataset_metadata = DatasetMetadata.parse_obj(json_obj)
+
+            metadata = DatasetMetadata.parse_obj(json_obj)
 
             dataset = Dataset(
                 name=name,
                 metadata_filepath=metadata_filepath,
                 tfrecord_filepath=tfrecord_filepath,
-                dataset_metadata=dataset_metadata,
+                metadata=metadata,
             )
 
         except Exception as ex:

@@ -1,4 +1,9 @@
+import json
 from typing import List, Dict
+
+
+def universal_dump(obj, fp):
+    json.dump(obj, fp, ensure_ascii=False, indent=4)
 
 
 class LabelFile:
@@ -62,9 +67,9 @@ class DatasetMetadata:
         content: str,
         labels: list,
         records: List[Dict[str, str]] = [],
-        invalid_records=[],
-        blank_combinations=[],
-        unsupported_combinations=[],
+        invalid_records: List[str] = [],
+        blank_combinations: List[Dict[str, str]] = [],
+        unsupported_combinations: List[Dict[str, str]] = [],
     ):
         self.source = source
         self.content = content

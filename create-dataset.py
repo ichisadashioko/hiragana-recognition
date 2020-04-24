@@ -253,12 +253,7 @@ def main():
             tfrecord_writer.write(record)
 
     with open(metadata_filepath, mode='w', encoding='utf-8') as outfile:
-        json.dump(
-            obj=dataset_metadata.__dict__,
-            fp=outfile,
-            ensure_ascii=False,
-            indent=2,
-        )
+        universal_dump(dataset_metadata.__dict__, outfile)
 
     info(f'Created dataset at {repr(dataset_dir)}')
 

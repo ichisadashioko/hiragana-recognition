@@ -66,3 +66,36 @@ body {
     grid-area: images;
     overflow: scroll;
 }
+
+#inspection-menu {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    background-color: rgba(0, 0, 0, .3);
+}
+
+#inspection-menu *{
+    padding: 5px;
+    font-size: 1em;
+    white-space: nowrap;
+    background-color: inherit;
+    text-align: left;
+}
+
+#inspection-menu *:hover{
+    background-color: rgba(0, 176, 51, .5);
+}
+
+.inspecting-image {
+    border-color: #aaaaaa;
+    border-style: solid;
+    border-width: 5px;
+}
+
+.selected-image {
+    border-color: #00ff00;
+}
+
+.invalid {
+    border-color: #ff0000;
+}

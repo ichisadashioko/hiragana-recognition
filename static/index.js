@@ -5,8 +5,9 @@ const logElement = document.getElementById('log')
 const datasetsDropdown = document.getElementById('datasets')
 const labelsContainer = document.getElementById('labels')
 const imageContainer = document.getElementById('images')
+const inspectionMenu = document.getElementById('inspection-menu')
 
-/** @type {{name: string, metadata: {source: string, content: string, labels: string[]}}} */
+/** @type {{name: string, metadata: {source: string, content: string, labels: string[], invalid_records: string[]}}} */
 var workingDataset = null
 
 /** @type {HTMLElement[]} */
@@ -14,6 +15,9 @@ var labelElements = []
 
 /** @type {{dataset: string, label: string, records: {hash: string, char: string, font: string}[]}}*/
 var workingLabel = null
+
+/** @type {HTMLImageElement[]} */
+var workingImages = []
 
 /**
  * Write log to HTML element.
@@ -109,10 +113,28 @@ function attachDataToImage(imageHash, imageElement) {
     }
 }
 
+/**
+ * Highlight the Right-clicked image.
+ * 
+ * @param {HTMLImageElement} img 
+ */
+function highlightSelectedImage(img) {
+    if (workingImages) {
+        workingImages.forEach(function (e) {
+            if (e === img) {
+                e.classList.add('selected-image')
+            } else {
+                e.classList.remove('selected-image')
+            }
+        })
+    }
+}
+
 function loadImages() {
     if (workingDataset && workingLabel) {
         // clear current showing images
         clearChildNodes(imageContainer)
+        workingImages = []
 
         // get all the image hashes from the selected label
         /** @type {string[]} */
@@ -139,17 +161,84 @@ function loadImages() {
                 let images = resObj.images
                 // TODO check for if we miss any image
 
+                let invalid_records = workingDataset.metadata.invalid_records
+
                 // sometimes, this for loop makes the UI freeze a while
                 images.forEach(function (image) {
                     let imageHash = image.hash
                     let imageData = image.image_data
 
-                    // TODO attach hash, label, font data to title
                     let imageElement = document.createElement('img')
+                    imageElement.classList.add('inspecting-image')
+
+                    for (let i = 0, n = invalid_records.length; i < n; i++) {
+                        if (imageHash === invalid_records[i]) {
+                            imageElement.classList.add('invalid')
+                            break
+                        }
+                    }
+
                     imageElement.src = `data:image/png;base64,${imageData}`
                     attachDataToImage(imageHash, imageElement)
                     imageContainer.appendChild(imageElement)
-                });
+
+                    // Right-click to open inspection menu
+                    imageElement.addEventListener('click', function (ev) {
+                        // console.log(ev)
+                        // console.log(this)
+
+                        highlightSelectedImage(this)
+                        let imageHash = this.dataset.hash
+                        let fontName = this.dataset.font
+
+                        let invalidImageButton = document.createElement('button')
+                        invalidImageButton.textContent = `Invalid this image (${imageHash})`
+                        invalidImageButton.addEventListener('click', function (ev) {
+                            inspectionMenu.style.display = 'none'
+                            let url = `/api/invalid/${workingDataset.name}/${imageHash}`
+                            let xhr = new XMLHttpRequest()
+
+                            xhr.addEventListener('load', function (ev) {
+                                console.log(this)
+
+                                if (this.status === 200) {
+                                    console.log(this.responseText)
+                                }
+                            })
+
+                            xhr.open('GET', url)
+                            xhr.send()
+                        })
+
+                        let invalidFontButton = document.createElement('button')
+                        invalidFontButton.textContent = `Invalid this font (${fontName})`
+
+                        clearChildNodes(inspectionMenu)
+                        inspectionMenu.appendChild(invalidImageButton)
+                        inspectionMenu.appendChild(invalidFontButton)
+                        inspectionMenu.style.display = ''
+
+                        // Calculate dimension to prevent losing content at borders
+                        let currentMenuStyle = getComputedStyle(inspectionMenu)
+
+                        // console.log(currentMenuStyle)
+                        console.log(currentMenuStyle.width)
+
+                        let requiredWidth = parseFloat(currentMenuStyle.width.replace('px', ''))
+                        let requiredHeight = parseFloat(currentMenuStyle.height.replace('px', ''))
+                        // console.log(requiredWidth)
+
+                        let left = Math.min(ev.x, Math.max(0, window.innerWidth - requiredWidth))
+                        let top = Math.min(ev.y, window.innerHeight - requiredHeight)
+
+                        inspectionMenu.style.left = `${left}px`
+                        inspectionMenu.style.top = `${top}px`
+
+                        ev.preventDefault()
+                    })
+
+                    workingImages.push(imageElement)
+                })
             }
         })
 
@@ -236,7 +325,6 @@ function loadDataset(name) {
         if (this.status === 200) {
             // logToUI(this.responseText)
 
-            /**@type {{name: string, metadata: {source: string, content: string, labels: string[]}}} */
             let resObj = JSON.parse(this.responseText)
             // console.log(resObj)
             // logToUI(resObj)
@@ -307,9 +395,16 @@ datasetsDropdown.addEventListener('change', function (ev) {
     }
 })
 
-document.addEventListener('keypress', function (ev) {
-    if (ev.key === 'l') {
+document.addEventListener('keydown', function (ev) {
+    console.log(ev)
+    // Attach most global keyboard shortcuts here
+
+    if (ev.code === 'KeyL') {
         // show or hide log when press 'L'
         logContainer.hidden = !logContainer.hidden
+    } else if (ev.code === 'Escape') {
+        if (inspectionMenu.style.display !== 'none') {
+            inspectionMenu.style.display = 'none'
+        }
     }
 })

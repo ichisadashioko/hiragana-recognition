@@ -73,12 +73,7 @@ def main():
     )
 
     with open(outfile, mode='w', encoding='utf-8') as out_stream:
-        json.dump(
-            obj=label_file.__dict__,
-            fp=out_stream,
-            indent=2,
-            ensure_ascii=False,
-        )
+        universal_dump(label_file.__dict__, out_stream)
 
 
 if __name__ == '__main__':
