@@ -50,6 +50,144 @@ function clearChildNodes(e) {
     }
 }
 
+function closeInspectionMenu() {
+    clearChildNodes(inspectionMenu)
+    inspectionMenu.style.display = 'none'
+}
+
+/**
+ * @param {{x: number, y: number}} ev 
+ */
+function showInspectionMenu(ev) {
+    inspectionMenu.style.display = ''
+
+    // Calculate dimension to prevent losing content at borders
+    let currentMenuStyle = getComputedStyle(inspectionMenu)
+
+    // console.log(currentMenuStyle)
+    console.log(currentMenuStyle.width)
+
+    let requiredWidth = parseFloat(currentMenuStyle.width.replace('px', ''))
+    let requiredHeight = parseFloat(currentMenuStyle.height.replace('px', ''))
+    // console.log(requiredWidth)
+
+    let left = Math.min(ev.x, Math.max(0, window.innerWidth - requiredWidth))
+    let top = Math.min(ev.y, window.innerHeight - requiredHeight)
+
+    inspectionMenu.style.left = `${left}px`
+    inspectionMenu.style.top = `${top}px`
+}
+
+/**
+ * @param {{hash: string, font: string}} record 
+ */
+function populateInspectionMenuItemsForRecordImage(record) {
+    clearChildNodes(inspectionMenu)
+
+    let isRecordValid = workingDataset.metadata.invalid_records.indexOf(record.hash) === -1
+    let isFontValid = workingDataset.metadata.invalid_fonts.indexOf(record.font) === -1
+
+    if (isRecordValid) {
+        // Mark record as invalid
+        let menuItem = document.createElement('button')
+        menuItem.textContent = `Mark this image as invalid.`
+        menuItem.addEventListener('click', function (ev) {
+            closeInspectionMenu()
+
+            let xhr = new XMLHttpRequest()
+            let url = `/api/record/invalid/${workingDataset.name}/${record.hash}`
+
+            xhr.addEventListener('load', function (ev) {
+                console.log(this)
+
+                if (this.status === 200) {
+                    console.log(this.responseText)
+                    // TODO reload metadata and images
+                }
+            })
+
+            xhr.open('GET', url)
+            xhr.send()
+        })
+
+        inspectionMenu.appendChild(menuItem)
+    } else {
+        // Mark record as valid
+        let menuItem = document.createElement('button')
+        menuItem.textContent = `Mark this image as valid.`
+        menuItem.addEventListener('click', function (ev) {
+            closeInspectionMenu()
+
+            let xhr = new XMLHttpRequest()
+            let url = `/api/record/valid/${workingDataset.name}/${record.hash}`
+
+            xhr.addEventListener('load', function (ev) {
+                console.log(this)
+
+                if (this.status === 200) {
+                    console.log(this.responseText)
+                    // TODO reload metadata and images
+                }
+            })
+
+            xhr.open('GET', url)
+            xhr.send()
+        })
+
+        inspectionMenu.appendChild(menuItem)
+    }
+
+    if (isFontValid) {
+        // Mark font as invalid
+        let menuItem = document.createElement('button')
+        menuItem.textContent = `Mark font ${record.font} as invalid.`
+        menuItem.addEventListener('click', function (ev) {
+            closeInspectionMenu()
+
+            let xhr = new XMLHttpRequest()
+            let url = `/api/font/invalid/${workingDataset.name}/${record.font}`
+
+            xhr.addEventListener('load', function (ev) {
+                console.log(this)
+
+                if (this.status === 200) {
+                    console.log(this.responseText)
+                    // TODO reload metadata and images
+                }
+            })
+
+            xhr.open('GET', url)
+            xhr.send()
+        })
+
+        inspectionMenu.appendChild(menuItem)
+    } else {
+        // Mark font as valid
+        let menuItem = document.createElement('button')
+        menuItem.textContent = `Mark font ${record.font} as valid.`
+        menuItem.addEventListener('click', function (ev) {
+            closeInspectionMenu()
+
+            let xhr = new XMLHttpRequest()
+            let url = `/api/font/valid/${workingDataset.name}/${record.font}`
+
+            xhr.addEventListener('load', function (ev) {
+                console.log(this)
+
+                if (this.status === 200) {
+                    console.log(this.responseText)
+                    // TODO reload metadata and images
+                }
+            })
+
+            xhr.open('GET', url)
+            xhr.send()
+        })
+
+        inspectionMenu.appendChild(menuItem)
+    }
+}
+
 /**
  * Request a single image. DEPRECATED
  * Maybe used for testing.
@@ -180,52 +318,8 @@ function renderImages() {
             // console.log(this)
 
             highlightSelectedImage(this)
-            let imageHash = this.dataset.hash
-            let fontName = this.dataset.font
-
-            let invalidImageButton = document.createElement('button')
-            invalidImageButton.textContent = `Invalid this image (${imageHash})`
-            invalidImageButton.addEventListener('click', function (ev) {
-                inspectionMenu.style.display = 'none'
-                let url = `/api/record/invalid/${workingDataset.name}/${imageHash}`
-                let xhr = new XMLHttpRequest()
-
-                xhr.addEventListener('load', function (ev) {
-                    console.log(this)
-
-                    if (this.status === 200) {
-                        console.log(this.responseText)
-                    }
-                })
-
-                xhr.open('GET', url)
-                xhr.send()
-            })
-
-            let invalidFontButton = document.createElement('button')
-            invalidFontButton.textContent = `Invalid this font (${fontName})`
-
-            clearChildNodes(inspectionMenu)
-            inspectionMenu.appendChild(invalidImageButton)
-            inspectionMenu.appendChild(invalidFontButton)
-            inspectionMenu.style.display = ''
-
-            // Calculate dimension to prevent losing content at borders
-            let currentMenuStyle = getComputedStyle(inspectionMenu)
-
-            // console.log(currentMenuStyle)
-            console.log(currentMenuStyle.width)
-
-            let requiredWidth = parseFloat(currentMenuStyle.width.replace('px', ''))
-            let requiredHeight = parseFloat(currentMenuStyle.height.replace('px', ''))
-            // console.log(requiredWidth)
-
-            let left = Math.min(ev.x, Math.max(0, window.innerWidth - requiredWidth))
-            let top = Math.min(ev.y, window.innerHeight - requiredHeight)
-
-            inspectionMenu.style.left = `${left}px`
-            inspectionMenu.style.top = `${top}px`
-
+            populateInspectionMenuItemsForRecordImage(this.dataset)
+            showInspectionMenu(ev)
             ev.preventDefault()
         })
 
@@ -406,8 +500,6 @@ function loadDatasets() {
     xhr.send()
 }
 
-loadDatasets()
-
 datasetsDropdown.addEventListener('change', function (ev) {
     // console.log(ev)
     let selectedDataset = datasetsDropdown.value
@@ -420,10 +512,52 @@ datasetsDropdown.addEventListener('change', function (ev) {
 
 document.addEventListener('keydown', function (ev) {
     console.log(ev)
+
     // Attach most global keyboard shortcuts here
     if (ev.code === 'Escape') {
         if (inspectionMenu.style.display !== 'none') {
-            inspectionMenu.style.display = 'none'
+            closeInspectionMenu()
         }
     }
 })
+
+/**
+ * @param {number} x 
+ * @param {number} y 
+ */
+function isClickOnInspectionMenu(x, y) {
+    // console.log(`${x} - ${y}`)
+    // console.log(`${inspectionMenu.offsetLeft} - ${inspectionMenu.offsetTop}`)
+
+    let inXRange = (x > inspectionMenu.offsetLeft) && (x < (inspectionMenu.offsetLeft + inspectionMenu.offsetWidth))
+    let inYRange = (y > inspectionMenu.offsetTop) && (y < (inspectionMenu.offsetTop + inspectionMenu.offsetHeight))
+    if (inXRange && inYRange) {
+        return true
+    }
+
+    return false
+}
+
+document.addEventListener('click', function (ev) {
+    // console.log(`${ev.x} - ${ev.y}`)
+    // console.log(`From document`)
+
+    // Event at `CAPTURING_PHASE` - parent first
+    // https://www.quirksmode.org/js/events_order.html
+    // https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/addEventListener
+
+    // close popup menu if click outside of the popup
+    if (inspectionMenu.style.display !== 'none') {
+        // console.log(isClickOnInspectionMenu(ev.x, ev.y))
+        if (isClickOnInspectionMenu) {
+            closeInspectionMenu()
+        }
+    }
+}, { capture: true })
+
+// inspectionMenu.addEventListener('click', function (ev) {
+//     console.log(`${ev.x} - ${ev.y}`)
+//     console.log(`From inspectionMenu`)
+// })
+
+loadDatasets()
