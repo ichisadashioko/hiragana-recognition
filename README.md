@@ -6,6 +6,14 @@ We are going to train a Hiragana (ひらがな) classifier (single character onl
 
 Dataset will be generated from some fonts.
 
+```sh
+# all scripts include -h option for showing usage
+# scripts order
+create-label.py # to create labels.json
+create-dataset.py # to create dataset from labels.json and supplement font files
+inspection-server.py # to inspect the data for defection in dataset
+```
+
 ## Install dependencies
 
 This project requires Python 3.6+ because I use f-string feature.
