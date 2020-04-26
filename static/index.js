@@ -1,43 +1,43 @@
 
-const DATASETS_API_URL = '/api/datasets'
-const logContainer = document.getElementById('log-container')
-const logElement = document.getElementById('log')
 const datasetsDropdown = document.getElementById('datasets')
 const labelsContainer = document.getElementById('labels')
 const imageContainer = document.getElementById('images')
 const inspectionMenu = document.getElementById('inspection-menu')
 
-/** @type {{name: string, metadata: {source: string, content: string, labels: string[], invalid_records: string[]}}} */
+/** @type {{
+ *   name: string, 
+ *   metadata: {
+ *     source: string,
+ *     content: string,
+ *     labels: string[],
+ *     invalid_records: string[],
+ *     invalid_fonts: string[],
+ *     completed_labels: string[]
+ *   }
+ * }}
+ */
 var workingDataset = null
 
 /** @type {HTMLElement[]} */
 var labelElements = []
 
-/** @type {{dataset: string, label: string, records: {hash: string, char: string, font: string}[]}}*/
+/** @type {{
+ *   dataset: string,
+ *   label: string,
+ *   records: {
+ *     hash: string,
+ *     char: string,
+ *     font: string
+ *   }[]
+ * }}
+ */
 var workingLabel = null
 
 /** @type {HTMLImageElement[]} */
-var workingImages = []
+var workingImageElements = []
 
-/**
- * Write log to HTML element.
- * 
- * @param {any} obj 
- */
-function logToUI(obj) {
-    if (typeof obj === 'string') {
-        logElement.textContent += obj + '\n'
-    } else {
-        let obj_str = JSON.stringify(obj, null, 2)
-        // console.log(obj_str)
-        logElement.textContent += obj_str + '\n'
-    }
-
-    logContainer.scrollTo({
-        top: logElement.clientHeight,
-        left: 0,
-    })
-}
+/** @type {{hash: string, data: string}[] */
+var workingImageData = []
 
 /**
  * Clear all children node of the element.
@@ -49,7 +49,6 @@ function clearChildNodes(e) {
         e.removeChild(e.firstChild)
     }
 }
-
 
 /**
  * Request a single image. DEPRECATED
@@ -77,7 +76,6 @@ function requestImage(datasetName, hash, cb) {
             /** @type {{image: string}} */
             let resObj = JSON.parse(this.responseText)
             console.log(resObj)
-            logToUI(resObj)
 
             if (cb) {
                 cb(resObj.image)
@@ -88,7 +86,6 @@ function requestImage(datasetName, hash, cb) {
     xhr.open('GET', url)
     xhr.send()
 }
-
 
 /**
  * Add record's hash, font name, dataset name to the ImageElement.
@@ -119,8 +116,8 @@ function attachDataToImage(imageHash, imageElement) {
  * @param {HTMLImageElement} img 
  */
 function highlightSelectedImage(img) {
-    if (workingImages) {
-        workingImages.forEach(function (e) {
+    if (workingImageElements) {
+        workingImageElements.forEach(function (e) {
             if (e === img) {
                 e.classList.add('selected-image')
             } else {
@@ -130,11 +127,121 @@ function highlightSelectedImage(img) {
     }
 }
 
-function loadImages() {
+/**
+ * @param {{hash: string, font: string}} record
+ */
+function isRecordInvalid(record) {
+    if (!workingDataset) {
+        throw Error('workingDataset is not set!')
+    }
+
+    for (let i = 0, n = workingDataset.metadata.invalid_records.length; i < n; i++) {
+        let invalidRecordHash = workingDataset.metadata.invalid_records[i]
+        if (record.hash === invalidRecordHash) {
+            return true
+        }
+    }
+
+    for (let i = 0, n = workingDataset.metadata.invalid_fonts; i < n; i++) {
+        let invalidFont = workingDataset.metadata.invalid_fonts[i]
+        if (record.font === invalidFont) {
+            return true
+        }
+    }
+
+    return false
+}
+
+function renderImages() {
+    if (!workingDataset || !workingLabel || !workingImageData) {
+        throw Error('working variables are not correctly set!')
+    }
+
+    // sometimes, this for loop makes the UI freeze a while
+    workingImageData.forEach(function (image) {
+        let imageHash = image.hash
+        let imageData = image.data
+
+        let imageElement = document.createElement('img')
+        imageElement.classList.add('inspecting-image')
+
+        imageElement.src = `data:image/png;base64,${imageData}`
+        attachDataToImage(imageHash, imageElement)
+
+        if (isRecordInvalid(imageElement.dataset)) {
+            imageElement.classList.add('invalid')
+        }
+
+        imageContainer.appendChild(imageElement)
+
+        // Right-click to open inspection menu
+        imageElement.addEventListener('click', function (ev) {
+            // console.log(ev)
+            // console.log(this)
+
+            highlightSelectedImage(this)
+            let imageHash = this.dataset.hash
+            let fontName = this.dataset.font
+
+            let invalidImageButton = document.createElement('button')
+            invalidImageButton.textContent = `Invalid this image (${imageHash})`
+            invalidImageButton.addEventListener('click', function (ev) {
+                inspectionMenu.style.display = 'none'
+                let url = `/api/record/invalid/${workingDataset.name}/${imageHash}`
+                let xhr = new XMLHttpRequest()
+
+                xhr.addEventListener('load', function (ev) {
+                    console.log(this)
+
+                    if (this.status === 200) {
+                        console.log(this.responseText)
+                    }
+                })
+
+                xhr.open('GET', url)
+                xhr.send()
+            })
+
+            let invalidFontButton = document.createElement('button')
+            invalidFontButton.textContent = `Invalid this font (${fontName})`
+
+            clearChildNodes(inspectionMenu)
+            inspectionMenu.appendChild(invalidImageButton)
+            inspectionMenu.appendChild(invalidFontButton)
+            inspectionMenu.style.display = ''
+
+            // Calculate dimension to prevent losing content at borders
+            let currentMenuStyle = getComputedStyle(inspectionMenu)
+
+            // console.log(currentMenuStyle)
+            console.log(currentMenuStyle.width)
+
+            let requiredWidth = parseFloat(currentMenuStyle.width.replace('px', ''))
+            let requiredHeight = parseFloat(currentMenuStyle.height.replace('px', ''))
+            // console.log(requiredWidth)
+
+            let left = Math.min(ev.x, Math.max(0, window.innerWidth - requiredWidth))
+            let top = Math.min(ev.y, window.innerHeight - requiredHeight)
+
+            inspectionMenu.style.left = `${left}px`
+            inspectionMenu.style.top = `${top}px`
+
+            ev.preventDefault()
+        })
+
+        workingImageElements.push(imageElement)
+    })
+}
+
+/**
+ * After `workingDataset` and `workingLabel` has been set. We can proceed to load all the images of the `workingLabel`.
+ */
+function requestImages() {
     if (workingDataset && workingLabel) {
         // clear current showing images
         clearChildNodes(imageContainer)
-        workingImages = []
+        workingImageElements = []
+        workingImageData = []
 
         // get all the image hashes from the selected label
         /** @type {string[]} */
@@ -154,91 +261,12 @@ function loadImages() {
             // console.log(this)
 
             if (this.status === 200) {
-                /** @type {{ images: {hash: string, image_data: string}[]}} */
+                /** @type {{images: {}[]}} */
                 let resObj = JSON.parse(this.responseText)
-                // logToUI(resObj)
-
-                let images = resObj.images
+                workingImageData = resObj.images
                 // TODO check for if we miss any image
 
-                let invalid_records = workingDataset.metadata.invalid_records
-
-                // sometimes, this for loop makes the UI freeze a while
-                images.forEach(function (image) {
-                    let imageHash = image.hash
-                    let imageData = image.image_data
-
-                    let imageElement = document.createElement('img')
-                    imageElement.classList.add('inspecting-image')
-
-                    for (let i = 0, n = invalid_records.length; i < n; i++) {
-                        if (imageHash === invalid_records[i]) {
-                            imageElement.classList.add('invalid')
-                            break
-                        }
-                    }
-
-                    imageElement.src = `data:image/png;base64,${imageData}`
-                    attachDataToImage(imageHash, imageElement)
-                    imageContainer.appendChild(imageElement)
-
-                    // Right-click to open inspection menu
-                    imageElement.addEventListener('click', function (ev) {
-                        // console.log(ev)
-                        // console.log(this)
-
-                        highlightSelectedImage(this)
-                        let imageHash = this.dataset.hash
-                        let fontName = this.dataset.font
-
-                        let invalidImageButton = document.createElement('button')
-                        invalidImageButton.textContent = `Invalid this image (${imageHash})`
-                        invalidImageButton.addEventListener('click', function (ev) {
-                            inspectionMenu.style.display = 'none'
-                            let url = `/api/invalid/${workingDataset.name}/${imageHash}`
-                            let xhr = new XMLHttpRequest()
-
-                            xhr.addEventListener('load', function (ev) {
-                                console.log(this)
-
-                                if (this.status === 200) {
-                                    console.log(this.responseText)
-                                }
-                            })
-
-                            xhr.open('GET', url)
-                            xhr.send()
-                        })
-
-                        let invalidFontButton = document.createElement('button')
-                        invalidFontButton.textContent = `Invalid this font (${fontName})`
-
-                        clearChildNodes(inspectionMenu)
-                        inspectionMenu.appendChild(invalidImageButton)
-                        inspectionMenu.appendChild(invalidFontButton)
-                        inspectionMenu.style.display = ''
-
-                        // Calculate dimension to prevent losing content at borders
-                        let currentMenuStyle = getComputedStyle(inspectionMenu)
-
-                        // console.log(currentMenuStyle)
-                        console.log(currentMenuStyle.width)
-
-                        let requiredWidth = parseFloat(currentMenuStyle.width.replace('px', ''))
-                        let requiredHeight = parseFloat(currentMenuStyle.height.replace('px', ''))
-                        // console.log(requiredWidth)
-
-                        let left = Math.min(ev.x, Math.max(0, window.innerWidth - requiredWidth))
-                        let top = Math.min(ev.y, window.innerHeight - requiredHeight)
-
-                        inspectionMenu.style.left = `${left}px`
-                        inspectionMenu.style.top = `${top}px`
-
-                        ev.preventDefault()
-                    })
-
-                    workingImages.push(imageElement)
-                })
+                renderImages()
             }
         })
 
@@ -257,7 +285,7 @@ function loadRecords(label) {
     if (workingDataset) {
         workingLabel = null
 
-        let url = `${DATASETS_API_URL}/${workingDataset.name}/${label}`
+        let url = `/api/datasets/${workingDataset.name}/${label}`
 
         let xhr = new XMLHttpRequest()
 
@@ -267,10 +295,10 @@ function loadRecords(label) {
 
             if (this.status === 200) {
                 let resObj = JSON.parse(this.responseText)
-                // logToUI(resObj)
+                console.log(resObj)
 
                 workingLabel = resObj
-                loadImages()
+                requestImages()
             }
         })
 
@@ -281,9 +309,10 @@ function loadRecords(label) {
     }
 }
 
-function showLabels() {
+function renderLabels() {
     clearChildNodes(labelsContainer)
     labelElements = []
+
     if (workingDataset) {
         let labels = workingDataset.metadata.labels
         for (let i = 0, n = labels.length; i < n; i++) {
@@ -314,7 +343,7 @@ function showLabels() {
  * @param {string} name the name of the dataset
  */
 function loadDataset(name) {
-    let url = `${DATASETS_API_URL}/${name}`
+    let url = `/api/datasets/${name}`
 
     let xhr = new XMLHttpRequest()
 
@@ -323,14 +352,11 @@ function loadDataset(name) {
         // console.log(this)
 
         if (this.status === 200) {
-            // logToUI(this.responseText)
-
             let resObj = JSON.parse(this.responseText)
             // console.log(resObj)
-            // logToUI(resObj)
 
             workingDataset = resObj
-            showLabels()
+            renderLabels()
         }
     })
 
@@ -355,8 +381,6 @@ function loadDatasets() {
         // console.log(this)
 
         if (this.status === 200) {
-            logToUI(this.responseText)
-
             // remove all elements from the dropdown to populate our data
             clearChildNodes(datasetsDropdown)
 
@@ -378,7 +402,7 @@ function loadDatasets() {
         }
     })
 
-    xhr.open('GET', DATASETS_API_URL)
+    xhr.open('GET', '/api/datasets')
     xhr.send()
 }
 
@@ -388,7 +412,6 @@ datasetsDropdown.addEventListener('change', function (ev) {
     // console.log(ev)
     let selectedDataset = datasetsDropdown.value
     console.log(selectedDataset)
-    logToUI(selectedDataset)
 
     if (selectedDataset) {
         loadDataset(selectedDataset)
@@ -398,11 +421,7 @@ datasetsDropdown.addEventListener('change', function (ev) {
 document.addEventListener('keydown', function (ev) {
     console.log(ev)
     // Attach most global keyboard shortcuts here
-
-    if (ev.code === 'KeyL') {
-        // show or hide log when press 'L'
-        logContainer.hidden = !logContainer.hidden
-    } else if (ev.code === 'Escape') {
+    if (ev.code === 'Escape') {
         if (inspectionMenu.style.display !== 'none') {
             inspectionMenu.style.display = 'none'
         }

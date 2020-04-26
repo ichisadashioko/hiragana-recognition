@@ -24,9 +24,6 @@ tf.config.experimental.set_visible_devices([], 'GPU')  # noqa: E402
 
 from tensorflow_utils import *  # noqa: E402
 
-datasets = []
-images_cache: List[Dict[str, str]] = []
-
 
 class Dataset:
     def __init__(
@@ -40,6 +37,10 @@ class Dataset:
         self.metadata_filepath = metadata_filepath
         self.tfrecord_filepath = tfrecord_filepath
         self.metadata = metadata
+
+
+datasets: List[Dataset] = []
+images_cache: List[Dict[str, str]] = []
 
 
 def find_dataset(name: str) -> Dataset:
@@ -56,6 +57,14 @@ def dataset_not_found(handler: RequestHandler, name: str):
     handler.write({
         'message': f'Cannot find dataset {repr(name)}!'
     })
+
+
+def save_metadata(metadata: DatasetMetadata, fpath: str):
+    if os.path.exists(fpath):
+        backup_file_by_modified_date(fpath)
+
+    with open(fpath, mode='w', encoding='utf-8') as outfile:
+        universal_dump(metadata.__dict__, outfile)
 
 
 @measure_exec_time
@@ -109,7 +118,7 @@ def load_images(tfrecord_filepath: str, hash_list: List[str]) -> List[Dict[str, 
 
                     image = {
                         'hash': record_hash,
-                        'image_data': base64.encodebytes(image_data).decode('utf-8'),
+                        'data': base64.encodebytes(image_data).decode('utf-8'),
                     }
 
                     images.append(image)
@@ -124,13 +133,23 @@ def load_images(tfrecord_filepath: str, hash_list: List[str]) -> List[Dict[str, 
     return images
 
 
-class ListAvailableDatasetsApi(RequestHandler):
+class ListAvailableDatasets(RequestHandler):
     def get(self):
-        dataset_names = list(map(lambda dataset: dataset.name, datasets))
-        self.write({'datasets': dataset_names})
+        dataset_names: List[str] = list(map(lambda dataset: dataset.name, datasets))  # noqa
+        # put dataset with name starts with alphabet first because when
+        # we create multiple datasets with the same source, they will be
+        # backup by appending modified time (Unix time) as prefix
+
+        latest_datasets = list(filter(lambda x: x[0].isalpha(), dataset_names))
+        remain_datasets = set(dataset_names) - set(latest_datasets)
+
+        response_list = []
+        response_list.extend(latest_datasets)
+        response_list.extend(remain_datasets)
+        self.write({'datasets': response_list})
 
 
-class DatasetApi(RequestHandler):
+class GetDatasetInfo(RequestHandler):
     def get(self, name: str):
         debug(f'Dataset name: {repr(name)}')
 
@@ -147,11 +166,13 @@ class DatasetApi(RequestHandler):
                 'content': dataset.metadata.content,
                 'labels': dataset.metadata.labels,
                 'invalid_records': dataset.metadata.invalid_records,
+                'invalid_fonts': dataset.metadata.invalid_fonts,
+                'completed_labels': dataset.metadata.completed_labels,
             },
         })
 
 
-class LabelInfoApi(RequestHandler):
+class GetLabelInfo(RequestHandler):
     def get(self, name: str, label: str):
 
         debug(f'Getting info for {repr(label)} in {repr(name)}')
@@ -174,7 +195,7 @@ class LabelInfoApi(RequestHandler):
         })
 
 
-class InvalidRecordApi(RequestHandler):
+class MarkRecordAsInvalid(RequestHandler):
     """Mark a record as invalid by its hash id."""
 
     def get(self, name: str, hash: str):
@@ -193,13 +214,7 @@ class InvalidRecordApi(RequestHandler):
         for record in records:
             if record['hash'] == hash:
                 metadata.invalid_records.append(hash)
-                # TODO save modified metadata
-                backup_filepath = backup_file_by_modified_date(
-                    dataset.metadata_filepath,
-                )
-
-                with open(dataset.metadata_filepath, mode='w', encoding='utf-8') as outfile:
-                    universal_dump(metadata.__dict__, outfile)
+                save_metadata(metadata, dataset.metadata_filepath)
 
                 self.write({
                     'record': record,
@@ -214,7 +229,102 @@ class InvalidRecordApi(RequestHandler):
         })
 
 
-class ImageHandler(RequestHandler):
+class MarkRecordAsValid(RequestHandler):
+
+    def get(self, name: str, hash: str):
+        dataset = find_dataset(name)
+
+        if dataset is None:
+            dataset_not_found(self, name)
+            return
+
+        metadata = dataset.metadata
+        invalid_records = metadata.invalid_records
+        metadata.invalid_records = list(filter(lambda x: x != hash, invalid_records))  # noqa
+        save_metadata(metadata, dataset.metadata_filepath)
+
+        self.write({
+            'message': f'Marked {repr(hash)} as valid record.',
+        })
+
+
+class MarkFontAsInvalid(RequestHandler):
+
+    def get(self, name: str, font: str):
+        dataset = find_dataset(name)
+
+        if dataset is None:
+            dataset_not_found(self, name)
+            return
+
+        metadata = dataset.metadata
+        if font not in metadata.invalid_fonts:
+            metadata.invalid_fonts.append(font)
+            save_metadata(metadata, dataset.metadata_filepath)
+
+        self.write({
+            'message': f'Marked {font} as invalid.',
+        })
+
+
+class MarkFontAsValid(RequestHandler):
+
+    def get(self, name: str, font: str):
+        dataset = find_dataset(name)
+
+        if dataset is None:
+            dataset_not_found(self, name)
+            return
+
+        metadata = dataset.metadata
+        invalid_fonts = metadata.invalid_fonts
+        metadata.invalid_fonts = list(filter(lambda x: x != font, invalid_fonts))  # noqa
+        save_metadata(metadata, dataset.metadata_filepath)
+
+        self.write({
+            'message': f'Marked {font} as valid.',
+        })
+
+
+class MarkLabelAsCompleted(RequestHandler):
+
+    def get(self, name: str, label: str):
+        dataset = find_dataset(name)
+
+        if dataset is None:
+            dataset_not_found(self, name)
+            return
+
+        metadata = dataset.metadata
+        if label not in metadata.completed_labels:
+            metadata.completed_labels.append(label)
+            save_metadata(metadata, dataset.metadata_filepath)
+
+        self.write({
+            'message': f'Marked label {repr(label)} as done.',
+        })
+
+
+class MarkLabelAsIncompleted(RequestHandler):
+
+    def get(self, name: str, label: str):
+        dataset = find_dataset(name)
+
+        if dataset is None:
+            dataset_not_found(self, name)
+            return
+
+        metadata = dataset.metadata
+        completed_labels = metadata.completed_labels
+        metadata.completed_labels = list(filter(lambda x: x != label, completed_labels))  # noqa
+        save_metadata(metadata, dataset.metadata_filepath)
+
+        self.write({
+            'messsage': f'Marked label {repr(label)} as not fully inspected.',
+        })
+
+
+class GetImageWithHash(RequestHandler):
     """Pull out a single image from TFRecord file."""
 
     def get(self, name: str, hash: str):
@@ -245,7 +355,7 @@ class ImageHandler(RequestHandler):
             })
 
 
-class ImageApi(RequestHandler):
+class GetImagesByHashes(RequestHandler):
 
     def bad_request(self, message: str):
         self.clear()
@@ -288,7 +398,7 @@ class ImageApi(RequestHandler):
             return
 
         images = load_images(dataset.tfrecord_filepath, data)
-        # debug(images)
+        debug('Retrieved', len(images), 'images from', len(data), 'hashes.')
         self.write({'images': images})
 
 
@@ -300,12 +410,17 @@ class IndexHandler(RequestHandler):
 def make_app():
     return Application(
         handlers=[
-            (r'/api/datasets', ListAvailableDatasetsApi),
-            (r'/api/datasets/([^/]+)', DatasetApi),
-            (r'/api/datasets/([^/]+)/([^/]+)', LabelInfoApi),
-            (r'/api/images/([^/]+)', ImageApi),
-            (r'/api/invalid/([^/]+)/([^/]+)', InvalidRecordApi),
-            (r'/images/([^/]+)/([^/]+)', ImageHandler),
+            (r'/api/datasets', ListAvailableDatasets),
+            (r'/api/datasets/([^/]+)', GetDatasetInfo),
+            (r'/api/datasets/([^/]+)/([^/]+)', GetLabelInfo),
+            (r'/api/images/([^/]+)', GetImagesByHashes),
+            (r'/api/record/invalid/([^/]+)/([^/]+)', MarkRecordAsInvalid),
+            (r'/api/record/valid/([^/]+)/([^/]+)', MarkRecordAsValid),
+            (r'/api/font/invalid/([^/]+)/([^/]+)', MarkFontAsInvalid),
+            (r'/api/font/valid/([^/]+)/([^/]+)', MarkFontAsValid),
+            (r'/api/label/complete/([^/]+)/([^/]+)', MarkLabelAsCompleted),
+            (r'/api/label/incomplete/([^/]+)/([^/]+)', MarkLabelAsIncompleted),
+            (r'/images/([^/]+)/([^/]+)', GetImageWithHash),
             (r'/', IndexHandler),
             (r'/(.*)', StaticFileHandler, {'path': './static'}),
         ],

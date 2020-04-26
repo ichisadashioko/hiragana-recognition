@@ -70,6 +70,8 @@ class DatasetMetadata:
         invalid_records: List[str] = [],
         blank_combinations: List[Dict[str, str]] = [],
         unsupported_combinations: List[Dict[str, str]] = [],
+        invalid_fonts: List[str] = [],
+        completed_labels: List[str] = [],
     ):
         self.source = source
         self.content = content
@@ -78,14 +80,21 @@ class DatasetMetadata:
         self.invalid_records = invalid_records  # (id) from records
         self.blank_combinations = blank_combinations  # (char, font)
         self.unsupported_combinations = unsupported_combinations
+        self.invalid_fonts = invalid_fonts
+        self.completed_labels = completed_labels
 
     @staticmethod
     def parse_obj(obj: dict):
         if not isinstance(obj, dict):
             raise Exception(f'{obj} is not a dict!')
 
+        sample = DatasetMetadata(
+            source='',
+            content='',
+            labels=[],
+        )
+
         required_keys = set(['source', 'content', 'labels', 'records'])
-        sample = DatasetMetadata('', '', [])
         all_keys = set(sample.__dict__.keys())
         optional_keys = all_keys - required_keys
 

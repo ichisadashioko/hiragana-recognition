@@ -10,22 +10,6 @@ body {
     background-color: #000000;
 }
 
-#log-container {
-    position: absolute;
-    width: 100vw;
-    height: 30vh;
-    bottom: 0;
-    overflow-x: scroll;
-    overflow-y: scroll;
-    color: #00ff00;
-    background-color: #222222;
-}
-
-#log {
-    color: inherit;
-    background-color: inherit;
-}
-
 #main {
     width: 100vw;
     height: 100vh;
@@ -74,7 +58,7 @@ body {
     background-color: rgba(0, 0, 0, .3);
 }
 
-#inspection-menu *{
+#inspection-menu * {
     padding: 5px;
     font-size: 1em;
     white-space: nowrap;
@@ -82,7 +66,7 @@ body {
     text-align: left;
 }
 
-#inspection-menu *:hover{
+#inspection-menu *:hover {
     background-color: rgba(0, 176, 51, .5);
 }
 
@@ -92,10 +76,10 @@ body {
     border-width: 5px;
 }
 
-.selected-image {
-    border-color: #00ff00;
-}
-
 .invalid {
     border-color: #ff0000;
+}
+
+.selected-image {
+    border-color: #00ff00;
 }

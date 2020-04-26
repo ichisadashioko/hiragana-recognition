@@ -190,9 +190,9 @@ def main():
     from tensorflow_utils import TFRSerDes
 
     dataset_metadata = DatasetMetadata(
-        label_file.source,
-        label_file.content,
-        label_file.labels,
+        source=label_file.source,
+        content=label_file.content,
+        labels=label_file.labels,
     )
 
     with tf.io.TFRecordWriter(tfrecord_filepath) as tfrecord_writer:
