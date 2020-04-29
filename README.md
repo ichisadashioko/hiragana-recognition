@@ -46,6 +46,11 @@ We will have to collect Hiragana-compatible fonts to generate the character imag
 python3 create-dataset.py
 ```
 
+# Note
+
+- I do apply `typing` for Python so most of the time you or me from the future can know where something comes from.
+- I do have type hinting for JavaScript with `jshint`. I didn't choose TypeScript because I wanted to reduce dependencies.
+
 # References
 
 - `argparser` - [Python Documentation](https://docs.python.org/3/library/argparse.html)
