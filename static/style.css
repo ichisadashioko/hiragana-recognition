@@ -83,3 +83,59 @@ body {
 .selected-image {
     border-color: #00ff00;
 }
+
+#loading {
+    background-color: rgba(68, 68, 68, .7);
+    position: absolute;
+    z-index: 0;
+    width: 100vw;
+    height: 100vh;
+    top: 0;
+    left: 0;
+}
+
+.rotating-ball {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+}
+
+.rotating-ball:before {
+    position: absolute;
+    content: '';
+    width: 100px;
+    height: 100px;
+    top: -50px;
+    left: -50px;
+    border-radius: 50%;
+    animation-name: spin;
+    animation-duration: 0.75s;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+}
+
+.rotating-ball.red:before {
+    background-color: rgb(255, 0, 0) !important;
+}
+
+.rotating-ball.green:before {
+    background-color: rgb(0, 255, 0) !important;
+    animation-delay: 0.25s;
+}
+
+.rotating-ball.blue:before {
+    background-color: rgb(0, 0, 255) !important;
+    animation-delay: 0.5s;
+}
+
+
+/* https://www.useragentman.com/blog/2013/03/03/animating-circular-paths-using-css3-transitions/ */
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg) translateX(200px) rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg) translateX(200px) rotate(-360deg);
+    }
+}
