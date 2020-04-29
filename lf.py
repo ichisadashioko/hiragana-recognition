@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Python 3.6+
 import os
 import subprocess
 from subprocess import PIPE
