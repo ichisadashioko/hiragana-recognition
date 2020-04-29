@@ -3,6 +3,8 @@ const datasetsDropdown = document.getElementById('datasets')
 const labelsContainer = document.getElementById('labels')
 const imageContainer = document.getElementById('images')
 const inspectionMenu = document.getElementById('inspection-menu')
+const loadingScreen = document.getElementById('loading')
+const SELECTED_IMAGE_CLASSNAME = 'selected-image'
 
 /** @type {{
  *   name: string, 
@@ -16,10 +18,10 @@ const inspectionMenu = document.getElementById('inspection-menu')
  *   }
  * }}
  */
-var workingDataset = null
+var workingDataset
 
 /** @type {HTMLElement[]} */
-var labelElements = []
+var labelElements
 
 /** @type {{
  *   dataset: string,
@@ -31,13 +33,13 @@ var labelElements = []
  *   }[]
  * }}
  */
-var workingLabel = null
+var workingLabel
 
 /** @type {HTMLImageElement[]} */
-var workingImageElements = []
+var showingImageElements
 
 /** @type {{hash: string, data: string}[] */
-var workingImageData = []
+var workingImageData
 
 /**
  * Clear all children node of the element.
@@ -50,15 +52,40 @@ function clearChildNodes(e) {
     }
 }
 
+function showLoadingScreen() {
+    // console.log(`Show loading screen!`)
+    // if (showLoadingScreen.caller) {
+    //     console.log(`By ${showLoadingScreen.caller.name}`)
+    // }
+
+    loadingScreen.style.display = ''
+}
+
+function hideLoadingScreen() {
+    // console.log(`Hide loading screen!`)
+    // if (hideLoadingScreen.caller) {
+    //     console.log(`By ${hideLoadingScreen.caller.name}`)
+    // }
+
+    loadingScreen.style.display = 'none'
+}
+
 function closeInspectionMenu() {
+    console.log('Closing inspection menu!')
     clearChildNodes(inspectionMenu)
     inspectionMenu.style.display = 'none'
+
+    // remove selected classes
+    showingImageElements.forEach(function (e) {
+        e.classList.remove(SELECTED_IMAGE_CLASSNAME)
+    })
 }
 
 /**
  * @param {{x: number, y: number}} ev 
  */
 function showInspectionMenu(ev) {
+    console.log('Showing inspection menu!')
     inspectionMenu.style.display = ''
 
     // Calculate dimension to prevent losing content at borders
@@ -79,6 +106,36 @@ function showInspectionMenu(ev) {
 }
 
 /**
+ * Send request to server to mark the record as invalid with hash
+ * 
+ * @param {string} name the name of the dataset
+ * @param {string} hash the record hash
+ * @param {(res: {message: string}) => void} cb the callback after successfully updating the record
+ */
+function setRecordAsInvalid(name, hash, cb) {
+    showLoadingScreen()
+
+    let url = `/api/record/invalid/${name}/${hash}`
+    let xhr = new XMLHttpRequest()
+
+    xhr.addEventListener('load', function (ev) {
+        if (this.status === 200) {
+            let res = JSON.parse(this.responseText)
+            console.log(res)
+
+            if (cb && (typeof cb === 'function')) {
+                cb(res)
+            }
+        }
+
+        hideLoadingScreen()
+    })
+
+    xhr.open('GET', url)
+    xhr.send()
+}
+
+/**
  * @param {{hash: string, font: string}} record 
  */
 function populateInspectionMenuItemsForRecordImage(record) {
@@ -94,20 +151,9 @@ function populateInspectionMenuItemsForRecordImage(record) {
         menuItem.addEventListener('click', function (ev) {
             closeInspectionMenu()
 
-            let xhr = new XMLHttpRequest()
-            let url = `/api/record/invalid/${workingDataset.name}/${record.hash}`
-
-            xhr.addEventListener('load', function (ev) {
-                console.log(this)
-
-                if (this.status === 200) {
-                    console.log(this.responseText)
-                    // TODO reload metadata and images
-                }
+            setRecordAsInvalid(workingDataset.name, record.hash, function (res) {
+                // TODO reload metadata and images' classes (invalid for valid)
             })
-
-            xhr.open('GET', url)
-            xhr.send()
         })
 
         inspectionMenu.appendChild(menuItem)
@@ -254,12 +300,14 @@ function attachDataToImage(imageHash, imageElement) {
  * @param {HTMLImageElement} img 
  */
 function highlightSelectedImage(img) {
-    if (workingImageElements) {
-        workingImageElements.forEach(function (e) {
+    // console.log('Highlighting selected image!')
+
+    if (showingImageElements) {
+        showingImageElements.forEach(function (e) {
             if (e === img) {
-                e.classList.add('selected-image')
+                e.classList.add(SELECTED_IMAGE_CLASSNAME)
             } else {
-                e.classList.remove('selected-image')
+                e.classList.remove(SELECTED_IMAGE_CLASSNAME)
             }
         })
     }
@@ -291,9 +339,15 @@ function isRecordInvalid(record) {
 }
 
 function renderImages() {
+    // let startTime = performance.now()
+    // console.log(startTime)
     if (!workingDataset || !workingLabel || !workingImageData) {
         throw Error('working variables are not correctly set!')
     }
+
+    showLoadingScreen()
+
+    showingImageElements = []
 
     // sometimes, this for loop makes the UI freeze a while
     workingImageData.forEach(function (image) {
@@ -323,51 +377,97 @@ function renderImages() {
             ev.preventDefault()
         })
 
-        workingImageElements.push(imageElement)
+        showingImageElements.push(imageElement)
     })
+
+    hideLoadingScreen()
+    // let endTime = performance.now()
+    // console.log(endTime)
+    // let execTime = endTime - startTime
+    // console.log(`renderImages took ${execTime} milliseconds!`)
 }
 
 /**
  * After `workingDataset` and `workingLabel` has been set. We can proceed to load all the images of the `workingLabel`.
  */
-function requestImages() {
-    if (workingDataset && workingLabel) {
-        // clear current showing images
-        clearChildNodes(imageContainer)
-        workingImageElements = []
-        workingImageData = []
 
-        // get all the image hashes from the selected label
-        /** @type {string[]} */
-        let imageHashes = []
-        for (let i = 0, n = workingLabel.records.length; i < n; i++) {
-            let record = workingLabel.records[i]
-            imageHashes.push(record.hash)
+/**
+ * Request base64 encoded images data from server with records' hashes.
+ * 
+ * @param {string} name the dataset name
+ * @param {string[]} hashes list of records' hashes
+ * @param {(res: {images: {hash: string, data: string}[]}) => void} cb the callback function to execute after getting response from server.
+ */
+function requestImages(name, hashes, cb) {
+    showLoadingScreen()
+
+    let startTime = performance.now()
+
+    let url = `/api/images/${name}`
+    let xhr = new XMLHttpRequest()
+    let bodyData = JSON.stringify(hashes)
+
+    xhr.addEventListener('loadend', function (ev) {
+        console.log(ev)
+        if (this.status === 200) {
+            let res = JSON.parse(this.responseText)
+            console.log(res)
+
+            if (cb && (typeof cb === 'function')) {
+                cb(res)
+            }
         }
 
-        let bodyData = JSON.stringify(imageHashes)
-        // console.log(bodyData)
+        hideLoadingScreen()
 
-        let url = `/api/images/${workingDataset.name}`
-        let xhr = new XMLHttpRequest()
-        xhr.addEventListener('load', function (ev) {
-            // console.log(ev)
-            // console.log(this)
+        let endTime = performance.now()
+        let execTime = endTime - startTime
+        console.log(startTime)
+        console.log(endTime)
+        console.log(execTime)
+    })
 
-            if (this.status === 200) {
-                /** @type {{images: {}[]}} */
-                let resObj = JSON.parse(this.responseText)
-                workingImageData = resObj.images
-                // TODO check for if we miss any image
+    xhr.open('POST', url)
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded')
+    xhr.send(bodyData)
+}
 
-                renderImages()
+/**
+ * Request list of images' information that have label `label` from dataset `name`.
+ * 
+ * @param {string} name the dataset name
+ * @param {string} label the label
+ * @param {(res: {
+ *     dataset: string, 
+ *     label: string, 
+ *     records: {
+ *         id: string, 
+ *         char: string, 
+ *         font: string
+ *     }[]
+ * }) => void} cb the callback to execute after getting response from server
+ */
+function requestLabelInformation(name, label, cb) {
+    showLoadingScreen()
+
+    let url = `/api/datasets/${name}/${label}`
+    let xhr = new XMLHttpRequest()
+
+    xhr.addEventListener('load', function (ev) {
+        if (this.status === 200) {
+            let res = JSON.parse(this.responseText)
+            console.log(res)
+
+            if (cb && (typeof cb === 'function')) {
+                cb(res)
             }
-        })
+        }
 
-        xhr.open('POST', url)
-        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded')
-        xhr.send(bodyData)
-    }
+        hideLoadingScreen()
+    })
+
+    xhr.open('GET', url)
+    xhr.send()
 }
 
 /**
@@ -377,27 +477,22 @@ function requestImages() {
  */
 function loadRecords(label) {
     if (workingDataset) {
-        workingLabel = null
+        requestLabelInformation(workingDataset.name, label, function (res) {
+            workingLabel = res
 
-        let url = `/api/datasets/${workingDataset.name}/${label}`
-
-        let xhr = new XMLHttpRequest()
-
-        xhr.addEventListener('load', function (ev) {
-            // console.log(ev)
-            // console.log(this)
-
-            if (this.status === 200) {
-                let resObj = JSON.parse(this.responseText)
-                console.log(resObj)
-
-                workingLabel = resObj
-                requestImages()
+            let recordHashes = []
+            for (let i = 0, n = workingLabel.records.length; i < n; i++) {
+                let record = workingLabel.records[i]
+                recordHashes.push(record.hash)
             }
-        })
 
-        xhr.open('GET', url)
-        xhr.send()
+            requestImages(workingDataset.name, recordHashes, function (res) {
+                workingImageData = res.images
+
+                clearChildNodes(imageContainer)
+                renderImages()
+            })
+        })
     } else {
         throw Error('Current working dataset is not available!')
     }
@@ -435,10 +530,12 @@ function renderLabels() {
  * Get the dataset information by dataset name.
  * 
  * @param {string} name the name of the dataset
+ * @param {(res: {}) => void}
  */
-function loadDataset(name) {
-    let url = `/api/datasets/${name}`
+function requestDatasetInfo(name, cb) {
+    showLoadingScreen()
 
+    let url = `/api/datasets/${name}`
     let xhr = new XMLHttpRequest()
 
     xhr.addEventListener('load', function (ev) {
@@ -447,10 +544,46 @@ function loadDataset(name) {
 
         if (this.status === 200) {
             let resObj = JSON.parse(this.responseText)
-            // console.log(resObj)
+            console.log(resObj)
+            if (cb && (typeof cb === 'function')) {
+                cb(resObj)
+            }
+        }
 
-            workingDataset = resObj
-            renderLabels()
+        hideLoadingScreen()
+    })
+
+    xhr.open('GET', url)
+    xhr.send()
+
+}
+
+/**
+ * @param {string} name 
+ */
+function loadDataset(name) {
+    requestDatasetInfo(name, function (res) {
+        workingDataset = res
+        renderLabels()
+    })
+}
+
+/**
+ * Request list of dataset names from server.
+ * 
+ * @param {(res: {datasets: string[]}) => void} cb 
+ */
+function requestDatasetList(cb) {
+    let url = '/api/datasets'
+    let xhr = new XMLHttpRequest()
+
+    xhr.addEventListener('load', function (ev) {
+        if (this.status === 200) {
+            let resObj = JSON.parse(this.responseText)
+
+            if (cb) {
+                cb(resObj)
+            }
         }
     })
 
@@ -458,50 +591,48 @@ function loadDataset(name) {
     xhr.send()
 }
 
-function loadDatasets() {
-    // clear the current dataset and label data
+/**
+ * @param {string[]} datasetNames 
+ */
+function renderDSDropdown(datasetNames) {
+    clearChildNodes(datasetsDropdown)
+
+    datasetNames.forEach(function (name) {
+        let optionElement = document.createElement('option')
+        optionElement.value = name
+        optionElement.textContent = name
+
+        datasetsDropdown.appendChild(optionElement)
+    })
+}
+
+/**
+ * Here is our main function for starting the application.
+ */
+function main() {
+    showLoadingScreen()
     // probably only call this function to refresh the whole app
-    workingDataset = null
-    workingLabel = null
     // clear all container
     clearChildNodes(datasetsDropdown)
     clearChildNodes(labelsContainer)
     clearChildNodes(imageContainer)
 
-    let xhr = new XMLHttpRequest()
+    // request a list of available datasets from the server and put them into a combobox input for selecting later.
+    requestDatasetList(function (res) {
+        renderDSDropdown(res.datasets)
 
-    xhr.addEventListener('load', function (ev) {
-        // console.log(ev)
-        // console.log(this)
-
-        if (this.status === 200) {
-            // remove all elements from the dropdown to populate our data
-            clearChildNodes(datasetsDropdown)
-
-            /**@type {Array<string>} */
-            let datasets = JSON.parse(this.responseText).datasets
-            for (let i = 0, n = datasets.length; i < n; i++) {
-                let datasetName = datasets[i]
-
-                let optionElement = document.createElement('option')
-                optionElement.value = datasetName
-                optionElement.textContent = datasetName
-
-                datasetsDropdown.appendChild(optionElement)
-            }
-
-            if (datasets.length > 0) {
-                loadDataset(datasets[0])
-            }
+        if (res.datasets.length > 0) {
+            // load the first dataset for convenient
+            loadDataset(res.datasets[0])
         }
-    })
 
-    xhr.open('GET', '/api/datasets')
-    xhr.send()
+        hideLoadingScreen()
+    })
 }
 
 datasetsDropdown.addEventListener('change', function (ev) {
     // console.log(ev)
+    clearChildNodes(imageContainer)
     let selectedDataset = datasetsDropdown.value
     console.log(selectedDataset)
 
@@ -560,4 +691,4 @@ document.addEventListener('click', function (ev) {
 //     console.log(`From inspectionMenu`)
 // })
 
-loadDatasets()
+main()
