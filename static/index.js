@@ -4,7 +4,9 @@ const labelsContainer = document.getElementById('labels')
 const imageContainer = document.getElementById('images')
 const inspectionMenu = document.getElementById('inspection-menu')
 const loadingScreen = document.getElementById('loading')
+const SELECTED_LABEL_CLASSNAME = 'active'
 const SELECTED_IMAGE_CLASSNAME = 'selected-image'
+const COMPLETED_LABEL_CLASSNAME = 'completed'
 
 /** @type {{
  *   name: string, 
@@ -21,7 +23,7 @@ const SELECTED_IMAGE_CLASSNAME = 'selected-image'
 var workingDataset
 
 /** @type {HTMLElement[]} */
-var labelElements
+var showingLabelElements
 
 /** @type {{
  *   dataset: string,
@@ -53,20 +55,10 @@ function clearChildNodes(e) {
 }
 
 function showLoadingScreen() {
-    // console.log(`Show loading screen!`)
-    // if (showLoadingScreen.caller) {
-    //     console.log(`By ${showLoadingScreen.caller.name}`)
-    // }
-
     loadingScreen.style.display = ''
 }
 
 function hideLoadingScreen() {
-    // console.log(`Hide loading screen!`)
-    // if (hideLoadingScreen.caller) {
-    //     console.log(`By ${hideLoadingScreen.caller.name}`)
-    // }
-
     loadingScreen.style.display = 'none'
 }
 
@@ -136,6 +128,46 @@ function setRecordAsInvalid(name, hash, cb) {
 }
 
 /**
+ * @param {string} label 
+ */
+function checkLabelCompleted(label) {
+    let completedLabels = workingDataset.metadata.completed_labels
+
+    for (let i = 0, n = completedLabels.length; i < n; i++) {
+        if (label === completedLabels[i]) {
+            return true
+        }
+    }
+
+    return false
+}
+
+/**
+ * @param {HTMLElement} element 
+ */
+function setLabelElementClassList(element) {
+    if (checkLabelCompleted(element.textContent)) {
+        element.classList.add(COMPLETED_LABEL_CLASSNAME)
+    } else {
+        element.classList.remove(COMPLETED_LABEL_CLASSNAME)
+    }
+}
+
+function reloadLabelsAndImagesClasses() {
+    requestDatasetInfo(workingDataset.name, function (res) {
+        workingDataset = res
+
+        showingLabelElements.forEach(function (element) {
+            setLabelElementClassList(element)
+        })
+
+        showingImageElements.forEach(function (element) {
+            setImageClasses(element)
+        })
+    })
+}
+
+/**
  * @param {{hash: string, font: string}} record 
  */
 function populateInspectionMenuItemsForRecordImage(record) {
@@ -153,6 +185,7 @@ function populateInspectionMenuItemsForRecordImage(record) {
 
             setRecordAsInvalid(workingDataset.name, record.hash, function (res) {
                 // TODO reload metadata and images' classes (invalid for valid)
+                reloadLabelsAndImagesClasses()
             })
         })
 
@@ -173,6 +206,7 @@ function populateInspectionMenuItemsForRecordImage(record) {
                 if (this.status === 200) {
                     console.log(this.responseText)
                     // TODO reload metadata and images
+                    reloadLabelsAndImagesClasses()
                 }
             })
 
@@ -199,6 +233,7 @@ function populateInspectionMenuItemsForRecordImage(record) {
                 if (this.status === 200) {
                     console.log(this.responseText)
                     // TODO reload metadata and images
+                    reloadLabelsAndImagesClasses()
                 }
             })
 
@@ -223,6 +258,7 @@ function populateInspectionMenuItemsForRecordImage(record) {
                 if (this.status === 200) {
                     console.log(this.responseText)
                     // TODO reload metadata and images
+                    reloadLabelsAndImagesClasses()
                 }
             })
 
@@ -328,7 +364,7 @@ function isRecordInvalid(record) {
         }
     }
 
-    for (let i = 0, n = workingDataset.metadata.invalid_fonts; i < n; i++) {
+    for (let i = 0, n = workingDataset.metadata.invalid_fonts.length; i < n; i++) {
         let invalidFont = workingDataset.metadata.invalid_fonts[i]
         if (record.font === invalidFont) {
             return true
@@ -336,6 +372,18 @@ function isRecordInvalid(record) {
     }
 
     return false
+}
+
+/**
+ * 
+ * @param {HTMLElement} element 
+ */
+function setImageClasses(element) {
+    if (isRecordInvalid(element.dataset)) {
+        element.classList.add('invalid')
+    } else {
+        element.classList.remove('invalid')
+    }
 }
 
 function renderImages() {
@@ -358,11 +406,9 @@ function renderImages() {
         imageElement.classList.add('inspecting-image')
 
         imageElement.src = `data:image/png;base64,${imageData}`
-        attachDataToImage(imageHash, imageElement)
 
-        if (isRecordInvalid(imageElement.dataset)) {
-            imageElement.classList.add('invalid')
-        }
+        attachDataToImage(imageHash, imageElement)
+        setImageClasses(imageElement)
 
         imageContainer.appendChild(imageElement)
 
@@ -498,32 +544,45 @@ function loadRecords(label) {
     }
 }
 
-function renderLabels() {
-    clearChildNodes(labelsContainer)
-    labelElements = []
-
-    if (workingDataset) {
-        let labels = workingDataset.metadata.labels
-        for (let i = 0, n = labels.length; i < n; i++) {
-            let labelElement = document.createElement('button')
-            labelElement.className = 'label'
-            labelElement.textContent = labels[i]
-
-            labelElement.addEventListener('click', function (ev) {
-                labelElements.forEach(function (element) {
-                    if (element === labelElement) {
-                        element.classList.add('active')
-                        loadRecords(element.textContent)
-                    } else {
-                        element.classList.remove('active')
-                    }
-                })
-            })
-
-            labelsContainer.appendChild(labelElement)
-            labelElements.push(labelElement)
+/**
+ * @param {string} label 
+ * @param {HTMLElement[]} labelElements 
+ * @param {string} activeClassName
+ */
+function toggleSelectedLabel(label, labelElements, activeClassName) {
+    for (let i = 0, n = labelElements.length; i < n; i++) {
+        let element = labelElements[i]
+        if (label === element.textContent) {
+            element.classList.add(activeClassName)
+        } else {
+            element.classList.remove(activeClassName)
         }
     }
+}
+
+/**
+ * @param {HTMLElement} container 
+ * @param {string[]} labels 
+ */
+function renderLabels(container, labels) {
+    let labelElements = []
+
+    for (let i = 0, n = labels.length; i < n; i++) {
+        let label = labels[i]
+        let element = document.createElement('button')
+        element.className = 'label'
+        element.textContent = label
+
+        element.addEventListener('click', function (ev) {
+            toggleSelectedLabel(label, labelElements, SELECTED_LABEL_CLASSNAME)
+            loadRecords(label)
+        })
+
+        container.appendChild(element)
+        labelElements.push(element)
+    }
+
+    return labelElements
 }
 
 /**
@@ -564,13 +623,13 @@ function requestDatasetInfo(name, cb) {
 function loadDataset(name) {
     requestDatasetInfo(name, function (res) {
         workingDataset = res
-        renderLabels()
+
+        clearChildNodes(labelsContainer)
+        showingLabelElements = renderLabels(labelsContainer, workingDataset.metadata.labels)
     })
 }
 
 /**
- * Request list of dataset names from server.
- * 
  * @param {(res: {datasets: string[]}) => void} cb 
  */
 function requestDatasetList(cb) {
@@ -579,10 +638,11 @@ function requestDatasetList(cb) {
 
     xhr.addEventListener('load', function (ev) {
         if (this.status === 200) {
-            let resObj = JSON.parse(this.responseText)
+            let res = JSON.parse(this.responseText)
+            console.log(res)
 
             if (cb) {
-                cb(resObj)
+                cb(res)
             }
         }
     })
@@ -685,10 +745,5 @@ document.addEventListener('click', function (ev) {
         }
     }
 }, { capture: true })
-
-// inspectionMenu.addEventListener('click', function (ev) {
-//     console.log(`${ev.x} - ${ev.y}`)
-//     console.log(`From inspectionMenu`)
-// })
 
 main()
