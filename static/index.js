@@ -40,7 +40,7 @@ var workingLabel
 /** @type {HTMLImageElement[]} */
 var showingImageElements
 
-/** @type {{hash: string, data: string}[] */
+/** @type {{hash: string, data: string}[]} */
 var workingImageData
 
 /**
@@ -58,8 +58,19 @@ function showLoadingScreen() {
     loadingScreen.style.display = ''
 }
 
-function hideLoadingScreen() {
-    loadingScreen.style.display = 'none'
+/**
+ * @param {string} [reason]
+ */
+function hideLoadingScreen(reason) {
+    if (reason) {
+        console.log(reason)
+    }
+
+    if (loadingScreen.style.display === 'none') {
+        console.log('Loading screen is not shown!')
+    } else {
+        loadingScreen.style.display = 'none'
+    }
 }
 
 function closeInspectionMenu() {
@@ -120,7 +131,7 @@ function setRecordAsInvalid(name, hash, cb) {
             }
         }
 
-        hideLoadingScreen()
+        hideLoadingScreen(`Set record as invalid.`)
     })
 
     xhr.open('GET', url)
@@ -395,38 +406,56 @@ function renderImages() {
 
     showLoadingScreen()
 
-    showingImageElements = []
+    setTimeout(function () {
+        showingImageElements = []
 
-    // sometimes, this for loop makes the UI freeze a while
-    workingImageData.forEach(function (image) {
-        let imageHash = image.hash
-        let imageData = image.data
+        /** @type {boolean[]} */
+        let loadingImageStatus = []
 
-        let imageElement = document.createElement('img')
-        imageElement.classList.add('inspecting-image')
+        for (let i = 0, n = workingImageData.length; i < n; i++) {
+            loadingImageStatus.push(false)
+        }
 
-        imageElement.src = `data:image/png;base64,${imageData}`
+        // sometimes, this for loop makes the UI freeze a while
+        for (let i = 0, n = workingImageData.length; i < n; i++) {
+            let image = workingImageData[i]
+            let imageHash = image.hash
+            let imageData = image.data
 
-        attachDataToImage(imageHash, imageElement)
-        setImageClasses(imageElement)
+            let imageElement = document.createElement('img')
+            imageElement.classList.add('inspecting-image')
 
-        imageContainer.appendChild(imageElement)
+            attachDataToImage(imageHash, imageElement)
+            setImageClasses(imageElement)
 
-        // Right-click to open inspection menu
-        imageElement.addEventListener('click', function (ev) {
-            // console.log(ev)
-            // console.log(this)
+            // Right-click to open inspection menu
+            imageElement.addEventListener('click', function (ev) {
+                // console.log(ev)
+                // console.log(this)
 
-            highlightSelectedImage(this)
-            populateInspectionMenuItemsForRecordImage(this.dataset)
-            showInspectionMenu(ev)
-            ev.preventDefault()
-        })
+                highlightSelectedImage(this)
+                populateInspectionMenuItemsForRecordImage(this.dataset)
+                showInspectionMenu(ev)
+                ev.preventDefault()
+            })
 
-        showingImageElements.push(imageElement)
-    })
+            showingImageElements.push(imageElement)
 
-    hideLoadingScreen()
+            setTimeout(function () {
+                imageElement.src = `data:image/png;base64,${imageData}`
+                imageContainer.appendChild(imageElement)
+                loadingImageStatus[i] = true
+
+                for (let idx = 0, n = loadingImageStatus.length; idx < n; idx++) {
+                    if (!loadingImageStatus[idx]) {
+                        return
+                    }
+                }
+
+                hideLoadingScreen('All images have been rendered.')
+            }, 500)
+        }
+    }, 500)
     // let endTime = performance.now()
     // console.log(endTime)
     // let execTime = endTime - startTime
@@ -460,11 +489,13 @@ function requestImages(name, hashes, cb) {
             console.log(res)
 
             if (cb && (typeof cb === 'function')) {
-                cb(res)
+                setTimeout(function () {
+                    cb(res)
+                }, 0)
             }
         }
 
-        hideLoadingScreen()
+        // hideLoadingScreen(`Received images' data.`)
 
         let endTime = performance.now()
         let execTime = endTime - startTime
@@ -509,7 +540,7 @@ function requestLabelInformation(name, label, cb) {
             }
         }
 
-        hideLoadingScreen()
+        hideLoadingScreen(`received label information`)
     })
 
     xhr.open('GET', url)
@@ -609,7 +640,7 @@ function requestDatasetInfo(name, cb) {
             }
         }
 
-        hideLoadingScreen()
+        hideLoadingScreen(`Received dataset info.`)
     })
 
     xhr.open('GET', url)
@@ -686,7 +717,7 @@ function main() {
             loadDataset(res.datasets[0])
         }
 
-        hideLoadingScreen()
+        hideLoadingScreen(`Hide loading screen after rendering dataset dropdown.`)
     })
 }
 
@@ -702,7 +733,7 @@ datasetsDropdown.addEventListener('change', function (ev) {
 })
 
 document.addEventListener('keydown', function (ev) {
-    console.log(ev)
+    // console.log(ev)
 
     // Attach most global keyboard shortcuts here
     if (ev.code === 'Escape') {

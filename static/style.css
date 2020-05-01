@@ -39,11 +39,16 @@ body {
 }
 
 .label {
+    border: solid 2px #aa0000;
     font-size: 2em;
 }
 
 .label.active {
     background-color: #00ff00;
+}
+
+.label.completed {
+    border-color: #00ff00;
 }
 
 #images {
