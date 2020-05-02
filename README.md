@@ -19,7 +19,7 @@ inspection-server.py # to inspect the data for defection in dataset
 This project requires Python 3.6+ because I use f-string feature.
 
 ```bash
-pip install -r ./requirements.txt
+pip install -r requirements.txt
 ```
 
 ## What do we want to classify?
@@ -45,6 +45,20 @@ We will have to collect Hiragana-compatible fonts to generate the character imag
 ```sh
 python3 create-dataset.py
 ```
+
+By default, this script will take `labels.json` as input. Add `-h` for usage information.
+
+## Inspect the dataset
+
+```sh
+python3 inspection-server.py
+```
+
+This will start a local webserver for inspecting and validating the dataset in browser at `http://localhost:3000/index.html`.
+
+![Example inspection interface](https://i.imgur.com/1EeUpJE.png)
+
+You can click on the label to show records or mark that label as done (all the records for that label have been reviewed). You can click on the image to mark the record as `invalid` or mark all the record with the same `font` as `invalid`. This process cannot be and should not be automated.
 
 # Note
 

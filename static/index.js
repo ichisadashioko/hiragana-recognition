@@ -89,6 +89,14 @@ function closeInspectionMenu() {
         showingLabelElements.forEach(function (e) {
             e.classList.remove(SELECTED_LABEL_CLASSNAME)
         })
+    } else {
+        showingLabelElements.forEach(function (e) {
+            if (e.textContent === workingLabel.label) {
+                e.classList.add(SELECTED_LABEL_CLASSNAME)
+            } else {
+                e.classList.remove(SELECTED_LABEL_CLASSNAME)
+            }
+        })
     }
 }
 
@@ -720,6 +728,7 @@ function renderLabels(container, labels) {
             showInspectionMenu(ev)
         })
 
+        setLabelElementClassList(element)
         container.appendChild(element)
         labelElements.push(element)
     }
