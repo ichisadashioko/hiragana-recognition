@@ -23,7 +23,7 @@ const COMPLETED_LABEL_CLASSNAME = 'completed'
 var workingDataset
 
 /** @type {HTMLElement[]} */
-var showingLabelElements
+var showingLabelElements = []
 
 /** @type {{
  *   dataset: string,
@@ -38,10 +38,10 @@ var showingLabelElements
 var workingLabel
 
 /** @type {HTMLImageElement[]} */
-var showingImageElements
+var showingImageElements = []
 
 /** @type {{hash: string, data: string}[]} */
-var workingImageData
+var workingImageData = []
 
 /**
  * Clear all children node of the element.
@@ -78,10 +78,18 @@ function closeInspectionMenu() {
     clearChildNodes(inspectionMenu)
     inspectionMenu.style.display = 'none'
 
-    // remove selected classes
+    // de-select all image elements
     showingImageElements.forEach(function (e) {
         e.classList.remove(SELECTED_IMAGE_CLASSNAME)
     })
+
+    // de-select all label elements if we are not working with any labels
+    if (!workingLabel) {
+        console.log(workingLabel)
+        showingLabelElements.forEach(function (e) {
+            e.classList.remove(SELECTED_LABEL_CLASSNAME)
+        })
+    }
 }
 
 /**
@@ -115,7 +123,7 @@ function showInspectionMenu(ev) {
  * @param {string} hash the record hash
  * @param {(res: {message: string}) => void} cb the callback after successfully updating the record
  */
-function setRecordAsInvalid(name, hash, cb) {
+function markRecordAsInvalid(name, hash, cb) {
     showLoadingScreen()
 
     let url = `/api/record/invalid/${name}/${hash}`
@@ -132,6 +140,115 @@ function setRecordAsInvalid(name, hash, cb) {
         }
 
         hideLoadingScreen(`Set record as invalid.`)
+    })
+
+    xhr.open('GET', url)
+    xhr.send()
+}
+
+function markRecordAsValid(name, hash, cb) {
+    showLoadingScreen()
+
+    let url = `/api/record/valid/${name}/${hash}`
+    let xhr = new XMLHttpRequest()
+
+    xhr.addEventListener('load', function (ev) {
+        if (this.status === 200) {
+            let res = JSON.parse(this.responseText)
+            console.log(res)
+
+            if (cb && (typeof cb === 'function')) {
+                cb(res)
+            }
+        }
+
+        hideLoadingScreen(`Set record as invalid.`)
+    })
+
+    xhr.open('GET', url)
+    xhr.send()
+}
+
+/**
+ * @param {string} name dataset name
+ * @param {string} label 
+ * @param {(res) => void} cb 
+ */
+function markLabelAsIncompleted(name, label, cb) {
+    let url = `/api/label/incomplete/${name}/${label}`
+    let xhr = new XMLHttpRequest()
+
+    xhr.addEventListener('load', function (ev) {
+        if (this.status === 200) {
+            let res = JSON.parse(this.responseText)
+            console.log(res)
+
+            if (cb && (typeof cb === 'function')) {
+                cb(res)
+            }
+        }
+    })
+
+    xhr.open('GET', url)
+    xhr.send()
+}
+
+/**
+ * @param {string} name dataset name
+ * @param {string} label 
+ * @param {(res) => void} cb 
+ */
+function markLabelAsCompleted(name, label, cb) {
+    let url = `/api/label/complete/${name}/${label}`
+    let xhr = new XMLHttpRequest()
+
+    xhr.addEventListener('load', function (ev) {
+        if (this.status === 200) {
+            let res = JSON.parse(this.responseText)
+            console.log(res)
+
+            if (cb && (typeof cb === 'function')) {
+                cb(res)
+            }
+        }
+    })
+
+    xhr.open('GET', url)
+    xhr.send()
+}
+
+function markFontAsValid(name, fontName, cb) {
+    let xhr = new XMLHttpRequest()
+    let url = `/api/font/valid/${name}/${fontName}`
+
+    xhr.addEventListener('load', function (ev) {
+        if (this.status === 200) {
+            let res = JSON.parse(this.responseText)
+            console.log(res)
+
+            if (cb && (typeof cb === 'function')) {
+                cb(res)
+            }
+        }
+    })
+
+    xhr.open('GET', url)
+    xhr.send()
+}
+
+function markFontAsInvalid(name, fontName, cb) {
+    let xhr = new XMLHttpRequest()
+    let url = `/api/font/invalid/${name}/${fontName}`
+
+    xhr.addEventListener('load', function (ev) {
+        if (this.status === 200) {
+            let res = JSON.parse(this.responseText)
+            console.log(res)
+
+            if (cb && (typeof cb === 'function')) {
+                cb(res)
+            }
+        }
     })
 
     xhr.open('GET', url)
@@ -194,8 +311,7 @@ function populateInspectionMenuItemsForRecordImage(record) {
         menuItem.addEventListener('click', function (ev) {
             closeInspectionMenu()
 
-            setRecordAsInvalid(workingDataset.name, record.hash, function (res) {
-                // TODO reload metadata and images' classes (invalid for valid)
+            markRecordAsInvalid(workingDataset.name, record.hash, function (res) {
                 reloadLabelsAndImagesClasses()
             })
         })
@@ -208,21 +324,9 @@ function populateInspectionMenuItemsForRecordImage(record) {
         menuItem.addEventListener('click', function (ev) {
             closeInspectionMenu()
 
-            let xhr = new XMLHttpRequest()
-            let url = `/api/record/valid/${workingDataset.name}/${record.hash}`
-
-            xhr.addEventListener('load', function (ev) {
-                console.log(this)
-
-                if (this.status === 200) {
-                    console.log(this.responseText)
-                    // TODO reload metadata and images
-                    reloadLabelsAndImagesClasses()
-                }
+            markRecordAsValid(workingDataset.name, record.hash, function (res) {
+                reloadLabelsAndImagesClasses()
             })
-
-            xhr.open('GET', url)
-            xhr.send()
         })
 
         inspectionMenu.appendChild(menuItem)
@@ -235,21 +339,9 @@ function populateInspectionMenuItemsForRecordImage(record) {
         menuItem.addEventListener('click', function (ev) {
             closeInspectionMenu()
 
-            let xhr = new XMLHttpRequest()
-            let url = `/api/font/invalid/${workingDataset.name}/${record.font}`
-
-            xhr.addEventListener('load', function (ev) {
-                console.log(this)
-
-                if (this.status === 200) {
-                    console.log(this.responseText)
-                    // TODO reload metadata and images
-                    reloadLabelsAndImagesClasses()
-                }
+            markFontAsInvalid(workingDataset.name, record.font, function (res) {
+                reloadLabelsAndImagesClasses()
             })
-
-            xhr.open('GET', url)
-            xhr.send()
         })
 
         inspectionMenu.appendChild(menuItem)
@@ -260,21 +352,58 @@ function populateInspectionMenuItemsForRecordImage(record) {
         menuItem.addEventListener('click', function (ev) {
             closeInspectionMenu()
 
-            let xhr = new XMLHttpRequest()
-            let url = `/api/font/valid/${workingDataset.name}/${record.font}`
-
-            xhr.addEventListener('load', function (ev) {
-                console.log(this)
-
-                if (this.status === 200) {
-                    console.log(this.responseText)
-                    // TODO reload metadata and images
-                    reloadLabelsAndImagesClasses()
-                }
+            markFontAsValid(workingDataset.name, record.font, function (res) {
+                reloadLabelsAndImagesClasses()
             })
+        })
 
-            xhr.open('GET', url)
-            xhr.send()
+        inspectionMenu.appendChild(menuItem)
+    }
+}
+
+/**
+ * @param {string} label 
+ */
+function populateInspectionMenuItemsForLabel(label) {
+    clearChildNodes(inspectionMenu)
+
+    let isCompleted = workingDataset.metadata.completed_labels.indexOf(label) === 1
+    let isShowing = false // TODO
+
+    if (!isShowing) {
+        let menuItem = document.createElement('button')
+        menuItem.textContent = 'Show records'
+        menuItem.addEventListener('click', function (ev) {
+            closeInspectionMenu()
+
+            loadRecords(label)
+            toggleSelectedLabel(label, showingLabelElements, SELECTED_LABEL_CLASSNAME)
+        })
+
+        inspectionMenu.appendChild(menuItem)
+    }
+
+    if (isCompleted) {
+        let menuItem = document.createElement('button')
+        menuItem.textContent = `Mark label as in-completed`
+        menuItem.addEventListener('click', function (ev) {
+            closeInspectionMenu()
+
+            markLabelAsIncompleted(workingDataset.name, label, function (res) {
+                reloadLabelsAndImagesClasses()
+            })
+        })
+
+        inspectionMenu.appendChild(menuItem)
+    } else {
+        let menuItem = document.createElement('button')
+        menuItem.textContent = `Mark label as completed`
+        menuItem.addEventListener('click', function (ev) {
+            closeInspectionMenu()
+
+            markLabelAsCompleted(workingDataset.name, label, function (res) {
+                reloadLabelsAndImagesClasses()
+            })
         })
 
         inspectionMenu.appendChild(menuItem)
@@ -406,56 +535,38 @@ function renderImages() {
 
     showLoadingScreen()
 
-    setTimeout(function () {
-        showingImageElements = []
+    showingImageElements = []
 
-        /** @type {boolean[]} */
-        let loadingImageStatus = []
+    // sometimes, this for loop makes the UI freeze a while
+    for (let i = 0, n = workingImageData.length; i < n; i++) {
+        let image = workingImageData[i]
+        let imageHash = image.hash
+        let imageData = image.data
 
-        for (let i = 0, n = workingImageData.length; i < n; i++) {
-            loadingImageStatus.push(false)
-        }
+        let imageElement = document.createElement('img')
+        imageElement.classList.add('inspecting-image')
 
-        // sometimes, this for loop makes the UI freeze a while
-        for (let i = 0, n = workingImageData.length; i < n; i++) {
-            let image = workingImageData[i]
-            let imageHash = image.hash
-            let imageData = image.data
+        attachDataToImage(imageHash, imageElement)
+        setImageClasses(imageElement)
 
-            let imageElement = document.createElement('img')
-            imageElement.classList.add('inspecting-image')
+        // Right-click to open inspection menu
+        imageElement.addEventListener('click', function (ev) {
+            // console.log(ev)
+            // console.log(this)
 
-            attachDataToImage(imageHash, imageElement)
-            setImageClasses(imageElement)
+            highlightSelectedImage(this)
+            populateInspectionMenuItemsForRecordImage(this.dataset)
+            showInspectionMenu(ev)
+            ev.preventDefault()
+        })
 
-            // Right-click to open inspection menu
-            imageElement.addEventListener('click', function (ev) {
-                // console.log(ev)
-                // console.log(this)
+        showingImageElements.push(imageElement)
 
-                highlightSelectedImage(this)
-                populateInspectionMenuItemsForRecordImage(this.dataset)
-                showInspectionMenu(ev)
-                ev.preventDefault()
-            })
+        imageElement.src = `data:image/png;base64,${imageData}`
+        imageContainer.appendChild(imageElement)
+    }
 
-            showingImageElements.push(imageElement)
-
-            setTimeout(function () {
-                imageElement.src = `data:image/png;base64,${imageData}`
-                imageContainer.appendChild(imageElement)
-                loadingImageStatus[i] = true
-
-                for (let idx = 0, n = loadingImageStatus.length; idx < n; idx++) {
-                    if (!loadingImageStatus[idx]) {
-                        return
-                    }
-                }
-
-                hideLoadingScreen('All images have been rendered.')
-            }, 500)
-        }
-    }, 500)
+    hideLoadingScreen('All images have been rendered.')
     // let endTime = performance.now()
     // console.log(endTime)
     // let execTime = endTime - startTime
@@ -489,9 +600,7 @@ function requestImages(name, hashes, cb) {
             console.log(res)
 
             if (cb && (typeof cb === 'function')) {
-                setTimeout(function () {
-                    cb(res)
-                }, 0)
+                cb(res)
             }
         }
 
@@ -606,7 +715,9 @@ function renderLabels(container, labels) {
 
         element.addEventListener('click', function (ev) {
             toggleSelectedLabel(label, labelElements, SELECTED_LABEL_CLASSNAME)
-            loadRecords(label)
+
+            populateInspectionMenuItemsForLabel(label)
+            showInspectionMenu(ev)
         })
 
         container.appendChild(element)

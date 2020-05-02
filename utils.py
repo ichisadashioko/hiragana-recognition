@@ -23,11 +23,10 @@ def timestamp_to_datetime(ts: float):
 def normalize_filename(filename):
     """Replace invalid filename characters with underscore."""
     return re.sub(
-        pattern='['
-        + re.escape(INVALID_FILENAME_CHARS)
-        + re.escape('(){}[]')
-        + r'\s'
-        + ']+',
+        pattern=(
+            '[' + re.escape(INVALID_FILENAME_CHARS)
+            + re.escape('(){}[]') + r'\s' + ']+'
+        ),
         repl='_',
         string=filename,
     ).strip('_')
