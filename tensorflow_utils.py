@@ -68,7 +68,6 @@ class TFRSerDes:
         DESCRIPTION_KEY: tf.io.FixedLenFeature([], tf.string),
     }
 
-    # reference https://docs.python.org/3/library/functions.html#classmethod
     @classmethod
     @measure_exec_time
     def serialize_record(

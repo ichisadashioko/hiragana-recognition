@@ -18,6 +18,7 @@ LABEL_FILENAME = 'labels.json'
 DATASETS_DIR = 'datasets'
 TFRECORD_FILENAME = 'dataset.tfrecord'
 METADATA_FILENAME = 'metadata.json'
+INSPECTED_DATASET_FILENAME = 'inspected-dataset.tfrecord'
 FONTS_DIR = 'fonts'
 FONT_SIZE = 64
 IMAGE_SIZE = 64

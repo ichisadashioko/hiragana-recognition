@@ -13,6 +13,7 @@ from fontTools.ttLib import TTFont
 
 from constants import *
 from logger import *
+from serializable import *
 
 
 def timestamp_to_datetime(ts: float):
@@ -206,3 +207,19 @@ def hash_sha256(s: str):
     m = hashlib.sha256()
     m.update(s)
     return m.digest().hex().upper()
+
+
+class Dataset:
+    def __init__(
+        self,
+        name: str,
+        path: str,
+        metadata_filepath: str,
+        tfrecord_filepath: str,
+        metadata: DatasetMetadata,
+    ):
+        self.name = name
+        self.path = path
+        self.metadata_filepath = metadata_filepath
+        self.tfrecord_filepath = tfrecord_filepath
+        self.metadata = metadata

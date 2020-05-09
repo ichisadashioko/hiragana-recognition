@@ -26,20 +26,6 @@ tf.config.experimental.set_visible_devices([], 'GPU')  # noqa: E402
 from tensorflow_utils import *  # noqa: E402
 
 
-class Dataset:
-    def __init__(
-        self,
-        name: str,
-        metadata_filepath: str,
-        tfrecord_filepath: str,
-        metadata: DatasetMetadata,
-    ):
-        self.name = name
-        self.metadata_filepath = metadata_filepath
-        self.tfrecord_filepath = tfrecord_filepath
-        self.metadata = metadata
-
-
 datasets: List[Dataset] = []
 images_cache: List[Dict[str, str]] = []
 
@@ -490,6 +476,7 @@ def main():
 
             dataset = Dataset(
                 name=name,
+                path=dataset_dir,
                 metadata_filepath=metadata_filepath,
                 tfrecord_filepath=tfrecord_filepath,
                 metadata=metadata,
