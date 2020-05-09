@@ -41,8 +41,15 @@ def process_record(record):
     image_depth = record[TFRSerDes.IMAGE_DEPTH_KEY]
 
     # TODO AttributeError: 'Tensor' object has no attribute 'numpy'
-    encoded_char: bytes = record[TFRSerDes.CHARACTER_KEY].numpy()
-    char = encoded_char.decode(TFRSerDes.ENCODING)
+    # encoded_char: bytes = record[TFRSerDes.CHARACTER_KEY].numpy()
+    # char = encoded_char.decode(TFRSerDes.ENCODING)
+
+    # TODO TensorFlow is building execution graph so external references
+    # are not allowed.
+    # We may have to train the model in Jupyter Notebook where most of
+    # TensorFlow features are executed eagerly.
+    char = record[TFRSerDes.CHARACTER_KEY]
+
     label = char2index[char]
 
     return process_image_data(image_data, image_depth), label
