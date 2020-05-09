@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-# encoding=utf-8
-
-# After inspecting dataset and marking invalid records or fonts, we will
-# need to remove them from the training/testing dataset.
-
+# encoding=utf-
 import os
 import time
 import json
@@ -11,10 +7,7 @@ import argparse
 from typing import List, Dict
 
 from tqdm import tqdm
-import tensorflow as tf  # noqa: E402
-# disable GPU because it takes too long for loading
-tf.config.experimental.set_visible_devices([], 'GPU')  # noqa: E402
-print(tf.executing_eagerly())  # noqa: E402
+import tensorflow as tf
 
 from constants import *
 from serializable import *
