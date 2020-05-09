@@ -179,14 +179,14 @@ def load_tfrecord(filename: str):
     return ds
 
 
-def generic_cnn_model(prefix: str, output_classes=45):
+def generic_cnn_model(prefix: str, input_shape: tuple, num_outputs: int):
     model = tf.keras.Sequential([
         tf.keras.layers.Conv2D(
             filters=32,
             kernel_size=16,
             activation=tf.nn.relu,
             name=f'{prefix}_Conv2D_1',
-            input_shape=(64, 64, 1,),
+            input_shape=input_shape,
             data_format='channels_last',
         ),
         tf.keras.layers.MaxPool2D(
@@ -220,7 +220,7 @@ def generic_cnn_model(prefix: str, output_classes=45):
             name=f'{prefix}_Dense_1',
         ),
         tf.keras.layers.Dense(
-            units=output_classes,
+            units=num_outputs,
             activation=tf.nn.softmax,
             name=f'{prefix}_Output_layer',
         ),
