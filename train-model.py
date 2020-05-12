@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# encoding=utf-
+# encoding=utf-8
 import os
 import time
 import json
@@ -7,6 +7,8 @@ import argparse
 from typing import List, Dict
 
 from tqdm import tqdm
+import numpy as np
+import cv2
 import tensorflow as tf
 
 from constants import *
@@ -24,21 +26,23 @@ def list_datasets(datasets: List[Dataset]):
         print(f'{idx} - {ds.name}')
 
 
-def process_image_data(image_data, channels: int):
-    image = tf.image.decode_png(image_data, channels=channels)
-    image = tf.cast(image, tf.float32)
-    image = image / 255.0
+@measure_exec_time
+def process_image_data(image_data: bytes, width: int, height: int, channels: int):
+    buf = np.frombuffer(image_data, dtype=np.uint8)
+    image = cv2.imdecode(buf, cv2.IMREAD_UNCHANGED)
+    image = image.reshape([height, width, channels])
     return image
 
 
+@measure_exec_time
 def process_record(record):
     # TensorFlow is implemented in C/C++ and Python wrapper is generated
     # at building time so typing is nearly non-existence when working
     # with TensorFlow.
-    image_data = record[TFRSerDes.IMAGE_KEY]
-    # image_width = record[TFRSerDes.IMAGE_WIDTH_KEY]
-    # image_height = record[TFRSerDes.IMAGE_HEIGHT_KEY]
-    image_depth = record[TFRSerDes.IMAGE_DEPTH_KEY]
+    image_data = record[TFRSerDes.IMAGE_KEY].numpy()
+    image_width = record[TFRSerDes.IMAGE_WIDTH_KEY].numpy()
+    image_height = record[TFRSerDes.IMAGE_HEIGHT_KEY].numpy()
+    image_depth = record[TFRSerDes.IMAGE_DEPTH_KEY].numpy()
 
     # TODO AttributeError: 'Tensor' object has no attribute 'numpy'
     # encoded_char: bytes = record[TFRSerDes.CHARACTER_KEY].numpy()
@@ -48,17 +52,17 @@ def process_record(record):
     # are not allowed.
     # We may have to train the model in Jupyter Notebook where most of
     # TensorFlow features are executed eagerly.
-    char = record[TFRSerDes.CHARACTER_KEY]
+    char = record[TFRSerDes.CHARACTER_KEY].numpy().decode(TFRSerDes.ENCODING)
 
     label = char2index[char]
 
-    return process_image_data(image_data, image_depth), label
+    return process_image_data(image_data, image_width, image_height, image_depth), label
 
 
 def train(
     ds: Dataset,
     optimizer='adam',
-    loss='sparse_categorial_crossentropy',
+    loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
     epochs=10,
 ):
     global char2index
@@ -74,7 +78,20 @@ def train(
 
     raw_dataset = tf.data.TFRecordDataset(dataset_filepath)
     train_dataset = raw_dataset.map(TFRSerDes.read_record)
-    train_dataset = train_dataset.map(process_record)
+
+    xs = []
+    ys = []
+
+    info('Processing dataset...')
+    for record in tqdm(train_dataset):
+        x, y = process_record(record)
+        xs.append(x)
+        ys.append(y)
+
+    info('Done loading dataset.')
+
+    xs = np.array(xs, dtype=np.uint8)
+    ys = np.array(ys)
 
     model_basename = ds.name
 
@@ -101,7 +118,8 @@ def train(
     )
 
     model.fit(
-        train_dataset,
+        x=(xs.astype(np.float32) / 255.0),
+        y=ys,
         epochs=epochs,
     )
 
