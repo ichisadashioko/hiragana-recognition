@@ -6,14 +6,6 @@ We are going to train a Hiragana (ひらがな) classifier (single character onl
 
 Dataset will be generated from some fonts.
 
-```sh
-# all scripts include -h option for showing usage
-# scripts order
-create-label.py # to create labels.json
-create-dataset.py # to create dataset from labels.json and supplement font files
-inspection-server.py # to inspect the data for defection in dataset
-```
-
 ## Install dependencies
 
 This project requires Python 3.6+ because I use f-string feature.
@@ -28,11 +20,9 @@ We need to specify a limited output characters that we want to classify. I put a
 
 Because this is a classification problem, we need to define the output format. Specifically, we want to pin down which character will take which index position in the output. If we don't have this output order consistently, we might interpret the model output wrongly. We will generate a JSON file for specifying the output format. It will be a array of characters in which the character order has been defined. This is useful when we export the model to TensorFlow Lite or TensorFlow.js where the model doesn't contain any information about what the output is represented.
 
-```sh
-python3 create-labels.py ./hiragana.txt
-```
+[notebook](./1-create-label.ipynb)
 
-This script will generated the `labels.json` file. The order of characters are just the order which they appear in the [`hiragana.txt`](./hiragana.txt) file. There are more suitable ways to order these characters but for the sake of simplicity, this ordering method will get the job done.
+This notebook will guide you to generate the `labels.json` file. The order of characters are just the order which they appear in the [`hiragana.txt`](./hiragana.txt) file. There are more suitable ways to order these characters but for the sake of simplicity, this ordering method will get the job done.
 
 ## Where do we get the dataset?
 
