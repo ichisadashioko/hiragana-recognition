@@ -4,6 +4,7 @@ log
 trash
 
 # ignore generated files
+datasets
 *.tfrecord
 *.h5
 *.ttf
