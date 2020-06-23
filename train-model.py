@@ -151,7 +151,7 @@ def main():
             dataset_dir = os.path.join(datasets_dir, name)
 
             metadata_filepath = os.path.join(dataset_dir, METADATA_FILENAME)
-            tfrecord_filepath = os.path.join(dataset_dir, TFRECORD_FILENAME)
+            serialized_dataset_filepath = os.path.join(dataset_dir, SERIALIZED_DATASET_FILENAME)
 
             json_obj = json.load(open(
                 metadata_filepath,
@@ -165,7 +165,7 @@ def main():
                 name=name,
                 path=dataset_dir,
                 metadata_filepath=metadata_filepath,
-                tfrecord_filepath=tfrecord_filepath,
+                serialized_dataset_filepath=serialized_dataset_filepath,
                 metadata=metadata,
             )
 

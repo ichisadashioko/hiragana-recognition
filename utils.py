@@ -215,11 +215,11 @@ class Dataset:
         name: str,
         path: str,
         metadata_filepath: str,
-        tfrecord_filepath: str,
+        serialized_dataset_filepath: str,
         metadata: DatasetMetadata,
     ):
         self.name = name
         self.path = path
         self.metadata_filepath = metadata_filepath
-        self.tfrecord_filepath = tfrecord_filepath
+        self.serialized_dataset_filepath = serialized_dataset_filepath
         self.metadata = metadata

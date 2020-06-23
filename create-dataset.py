@@ -109,7 +109,7 @@ def main():
 
     os.makedirs(dataset_dir)
 
-    tfrecord_filepath = os.path.join(dataset_dir, TFRECORD_FILENAME)
+    serialized_dataset_filepath = os.path.join(dataset_dir, SERIALIZED_DATASET_FILENAME)
     metadata_filepath = os.path.join(dataset_dir, METADATA_FILENAME)
 
     if image_size < font_size:
@@ -196,7 +196,7 @@ def main():
         labels=label_file.labels,
     )
 
-    with tf.io.TFRecordWriter(tfrecord_filepath) as tfrecord_writer:
+    with tf.io.TFRecordWriter(serialized_dataset_filepath) as tfrecord_writer:
         # create task list to have progress bar with `tqdm`
         # TODO shuffle dataset
         # TODO split dataset to small files if it is too large (>100MB)

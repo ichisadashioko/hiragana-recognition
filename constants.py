@@ -16,7 +16,7 @@ LABEL_FILENAME = 'labels.json'
 
 # start to be used in `create-dataset.py`
 DATASETS_DIR = 'datasets'
-TFRECORD_FILENAME = 'dataset.tfrecord'
+SERIALIZED_DATASET_FILENAME = 'dataset.xformat'
 METADATA_FILENAME = 'metadata.json'
 INSPECTED_DATASET_FILENAME = 'inspected-dataset.tfrecord'
 FONTS_DIR = 'fonts'

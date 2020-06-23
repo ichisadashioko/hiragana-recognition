@@ -38,7 +38,7 @@ def remove_invalid_records(ds: Dataset, outfile: str):
     with tf.io.TFRecordWriter(outfile) as tfrecord_writer:
         # TODO shuffle records
 
-        raw_dataset = tf.data.TFRecordDataset(ds.tfrecord_filepath)
+        raw_dataset = tf.data.TFRecordDataset(ds.serialized_dataset_filepath)
 
         pbar = tqdm(raw_dataset)
         for raw_record in pbar:
@@ -87,7 +87,7 @@ def main():
             dataset_dir = os.path.join(datasets_dir, name)
 
             metadata_filepath = os.path.join(dataset_dir, METADATA_FILENAME)
-            tfrecord_filepath = os.path.join(dataset_dir, TFRECORD_FILENAME)
+            serialized_dataset_filepath = os.path.join(dataset_dir, SERIALIZED_DATASET_FILENAME)
 
             json_obj = json.load(open(
                 metadata_filepath,
@@ -101,7 +101,7 @@ def main():
                 name=name,
                 path=dataset_dir,
                 metadata_filepath=metadata_filepath,
-                tfrecord_filepath=tfrecord_filepath,
+                serialized_dataset_filepath=serialized_dataset_filepath,
                 metadata=metadata,
             )
 

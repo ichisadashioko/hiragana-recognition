@@ -7,6 +7,7 @@ import json
 import base64
 import argparse
 from typing import List, Dict, Iterable, Any
+import traceback
 
 import tornado
 from tornado.ioloop import IOLoop
@@ -18,12 +19,6 @@ from argtypes import *
 from utils import *
 from logger import *
 from constants import *
-
-import tensorflow as tf  # noqa: E402
-# disable GPU because it takes too long for loading
-tf.config.experimental.set_visible_devices([], 'GPU')  # noqa: E402
-
-from tensorflow_utils import *  # noqa: E402
 
 
 datasets: List[Dataset] = []
@@ -52,72 +47,6 @@ def save_metadata(metadata: DatasetMetadata, fpath: str):
 
     with open(fpath, mode='w', encoding='utf-8') as outfile:
         universal_dump(metadata.__dict__, outfile)
-
-
-@measure_exec_time
-def load_image(tfrecord_filepath: str, hash: str) -> bytes:
-    if not os.path.exists(tfrecord_filepath):
-        error(f'{tfrecord_filepath} does not exist!')
-        return
-
-    try:
-        raw_dataset = tf.data.TFRecordDataset(tfrecord_filepath)
-        records: Iterable[Dict[str, Any]] = raw_dataset.map(TFRSerDes.read_record)  # noqa
-
-        for record in records:
-            hash_feature = record[TFRSerDes.HASH_KEY]
-            hash_bytes: bytes = hash_feature.numpy()
-            record_hash = hash_bytes.decode(TFRSerDes.ENCODING)
-            if hash == record_hash:
-                image_data: bytes = record[TFRSerDes.IMAGE_KEY].numpy()
-
-                return image_data
-    except Exception as ex:
-        error(repr(ex))
-        traceback.print_exc()
-
-
-@measure_exec_time
-def load_images(tfrecord_filepath: str, hash_list: List[str]) -> List[Dict[str, str]]:
-    """Get multiple images from the TFRecord file.
-
-    This method will be more efficient than retrieving one image at a
-    time because before shuffling records with the same labels will be
-    next to each others.
-    """
-    if not os.path.exists(tfrecord_filepath):
-        error(f'{tfrecord_filepath} does not exist!')
-        return []
-
-    remain_hashes = [hash for hash in hash_list]
-    images = []
-    try:
-        raw_dataset = tf.data.TFRecordDataset(tfrecord_filepath)
-        records: Iterable[Dict[str, Any]] = raw_dataset.map(TFRSerDes.read_record)  # noqa
-
-        for record in records:
-            if len(remain_hashes) > 0:
-                hash_feature = record[TFRSerDes.HASH_KEY]
-                hash_bytes: bytes = hash_feature.numpy()
-                record_hash = hash_bytes.decode(TFRSerDes.ENCODING)
-                if record_hash in remain_hashes:
-                    image_data: bytes = record[TFRSerDes.IMAGE_KEY].numpy()
-
-                    image = {
-                        'hash': record_hash,
-                        'data': base64.encodebytes(image_data).decode('utf-8'),
-                    }
-
-                    images.append(image)
-                    remain_hashes.remove(record_hash)
-            else:
-                break
-
-    except Exception as ex:
-        error(repr(ex))
-        traceback.print_exc()
-
-    return images
 
 
 class ListAvailableDatasets(RequestHandler):
@@ -311,7 +240,7 @@ class MarkLabelAsIncompleted(RequestHandler):
         })
 
 
-class GetImageWithHash(RequestHandler):
+class GetImageByHash(RequestHandler):
     """Pull out a single image from TFRecord file."""
 
     def get(self, name: str, hash: str):
@@ -322,13 +251,26 @@ class GetImageWithHash(RequestHandler):
             dataset_not_found(self, name)
             return
 
-        image = load_image(dataset.tfrecord_filepath, hash)
+        record_info = None
 
-        if image is not None:
-            base64_image = base64.encodebytes(image).decode('utf-8')
-            self.write({
-                'image': base64_image,
-            })
+        for record in dataset.metadata.records:
+            if record['hash'] == hash:
+                record_info = record
+                break
+
+        if record_info is not None:
+            seek_start = record_info['seek_start']
+            seek_end = record_info['seek_end']
+
+            with open(dataset.serialized_dataset_filepath, mode='rb') as in_stream:
+                in_stream.seek(seek_start)
+                bs = in_stream.read(seek_end - seek_start)
+                record_datatype = bs[0]
+                record = XFormat.deserialze_obj(bs[5:])
+                base64_image = base64.encodebytes(record['PNG_IMAGE']).decode('utf-8')  # noqa
+                self.write({
+                    'image': base64_image,
+                })
 
         else:
             self.clear()
@@ -384,9 +326,29 @@ class GetImagesByHashes(RequestHandler):
             dataset_not_found(self, name)
             return
 
-        images = load_images(dataset.tfrecord_filepath, data)
-        debug('Retrieved', len(images), 'images from', len(data), 'hashes.')
-        self.write({'images': images})
+        images = {hash_str: None for hash_str in data}
+        remain_hashes = [hash_str for hash_str in data]
+
+        with open(dataset.serialized_dataset_filepath, 'rb') as in_stream:
+            for record in dataset.metadata.records:
+                if len(remain_hashes) > 0:
+                    record_hash = record['hash']
+                    if record_hash in remain_hashes:
+                        remain_hashes.remove(record_hash)
+                        seek_start = record['seek_start']
+                        seek_end = record['seek_end']
+
+                        in_stream.seek(seek_start)
+                        bs = in_stream.read(seek_end-seek_start)
+                        record_datatype = bs[0]
+                        serialized_record = XFormat.deserialze_obj(bs[5:], record_datatype)  # noqa
+                        base64_image = base64.encodebytes(serialized_record['PNG_IMAGE']).decode('utf-8')  # noqa
+                        images[record_hash] = base64_image
+                else:
+                    break
+
+        image_list = [{'hash': key, 'data': images[key]} for key in images]
+        self.write({'images': image_list})
 
 
 class IndexHandler(RequestHandler):
@@ -407,7 +369,7 @@ def make_app():
             (r'/api/font/valid/([^/]+)/([^/]+)', MarkFontAsValid),
             (r'/api/label/complete/([^/]+)/([^/]+)', MarkLabelAsCompleted),
             (r'/api/label/incomplete/([^/]+)/([^/]+)', MarkLabelAsIncompleted),
-            (r'/images/([^/]+)/([^/]+)', GetImageWithHash),
+            (r'/images/([^/]+)/([^/]+)', GetImageByHash),
             (r'/', IndexHandler),
             (r'/(.*)', StaticFileHandler, {'path': './static'}),
         ],
@@ -464,7 +426,12 @@ def main():
             dataset_dir = os.path.join(datasets_dir, name)
 
             metadata_filepath = os.path.join(dataset_dir, METADATA_FILENAME)
-            tfrecord_filepath = os.path.join(dataset_dir, TFRECORD_FILENAME)
+            if not os.path.exists(metadata_filepath):
+                raise Exception(f'{metadata_filepath} does not exist!')
+
+            serialized_dataset_filepath = os.path.join(dataset_dir, SERIALIZED_DATASET_FILENAME)  # noqa
+            if not os.path.exists(serialized_dataset_filepath):
+                raise Exception(f'{serialized_dataset_filepath} does not exist!')  # noqa
 
             json_obj = json.load(open(
                 metadata_filepath,
@@ -478,13 +445,14 @@ def main():
                 name=name,
                 path=dataset_dir,
                 metadata_filepath=metadata_filepath,
-                tfrecord_filepath=tfrecord_filepath,
+                serialized_dataset_filepath=serialized_dataset_filepath,
                 metadata=metadata,
             )
 
         except Exception as ex:
             error(repr(ex))
             warn(f'Skipping {name}!')
+            traceback.print_exc()
             continue
 
         datasets.append(dataset)
