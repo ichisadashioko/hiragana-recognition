@@ -286,7 +286,7 @@ class GetImageByHash(RequestHandler):
 
 class GetImagesByHashes(RequestHandler):
 
-    def bad_request(self, message: str):
+    def notify_bad_request(self, message: str):
         self.clear()
         self.set_status(400)  # Bad Request
         self.write({'message': message})
@@ -299,7 +299,7 @@ class GetImagesByHashes(RequestHandler):
         body = self.request.body
         # debug(f'Request body: {body}')
         if len(body) == 0:
-            self.bad_request('Request body must be a list of string!')
+            self.notify_bad_request('Request body must be a list of string!')
             return
 
         try:
@@ -308,16 +308,16 @@ class GetImagesByHashes(RequestHandler):
             error(ex)
             traceback.print_exc()
 
-            self.bad_request('Body data is not valid JSON data!')
+            self.notify_bad_request('Body data is not valid JSON data!')
             return
 
         if not isinstance(data, list):
-            self.bad_request('Body data is not a list!')
+            self.notify_bad_request('Body data is not a list!')
             return
 
         for o in data:
             if not isinstance(o, str):
-                self.bad_request('The list must only contain string!')
+                self.notify_bad_request('The list must only contain string!')
                 return
 
         dataset = find_dataset(name)
