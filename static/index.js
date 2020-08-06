@@ -1,4 +1,3 @@
-
 const datasetsDropdown = document.getElementById('datasets')
 const labelsContainer = document.getElementById('labels')
 const imageContainer = document.getElementById('images')
