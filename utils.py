@@ -196,14 +196,14 @@ def backup_file_by_modified_date(infile: str):
 
 
 @measure_exec_time
-def hash_md5(s: str):
+def hash_md5(s: bytes):
     m = hashlib.md5()
     m.update(s)
     return m.digest().hex().upper()
 
 
 @measure_exec_time
-def hash_sha256(s: str):
+def hash_sha256(s: bytes):
     m = hashlib.sha256()
     m.update(s)
     return m.digest().hex().upper()
