@@ -1,12 +1,10 @@
 # extension for argparse (argument types)
 import os
 import json
-import traceback
 from argparse import ArgumentTypeError
 
 from constants import *
 from logger import *
-from serializable import *
 
 
 def positive_int(string: str):
@@ -33,40 +31,6 @@ def valid_filename(string: str):
             raise ArgumentTypeError(f'Filename contains {c} character!')
 
     return string
-
-
-def labelfile_compatible_json(string: str) -> LabelFile:
-    if not os.path.exists(string):
-        raise ArgumentTypeError(f'{repr(string)} does not exist!')
-    elif not os.path.isfile(string):
-        raise ArgumentTypeError(f'{repr(string)} is not a file!')
-
-    try:
-        with open(string, mode='r', encoding='utf-8') as infile:
-            obj = json.load(infile)
-
-        return LabelFile.parse_obj(obj)
-
-    except Exception as ex:
-        error(repr(ex))
-        raise ArgumentTypeError(f'{repr(string)} has some problems!')
-
-
-def metadatafile_compatible_json(string: str) -> DatasetMetadata:
-    if not os.path.exists(string):
-        raise ArgumentTypeError(f'{repr(string)} does not exist!')
-    elif not os.path.isfile(string):
-        raise ArgumentTypeError(f'{repr(string)} is not a file!')
-
-    try:
-        with open(string, mode='r', encoding='utf-8') as infile:
-            obj = json.load(infile)
-
-        return DatasetMetadata.parse_obj(obj)
-
-    except Exception as ex:
-        error(repr(ex))
-        raise ArgumentTypeError(f'{repr(string)} has some problems!')
 
 
 def valid_port_number(string: str):

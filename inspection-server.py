@@ -14,7 +14,6 @@ from tornado.ioloop import IOLoop
 from tornado.web import Application, RequestHandler, StaticFileHandler
 import numpy as np
 
-from serializable import *
 from argtypes import *
 from utils import *
 from logger import *

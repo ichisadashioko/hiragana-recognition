@@ -12,7 +12,6 @@ import cv2
 import tensorflow as tf
 
 from constants import *
-from serializable import *
 from argtypes import *
 from logger import *
 from utils import *

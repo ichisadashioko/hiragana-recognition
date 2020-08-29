@@ -3,11 +3,7 @@
 import os
 import io
 import time
-import json
 import argparse
-from argparse import ArgumentTypeError
-import traceback
-import warnings
 import itertools
 
 from tqdm import tqdm
@@ -16,8 +12,6 @@ from constants import *
 from logger import *
 from utils import *
 from argtypes import *
-from serializable import *
-
 
 @measure_exec_time
 def main():
@@ -30,19 +24,7 @@ def main():
         ),
     )
 
-    parser.add_argument(
-        '--label-file',
-        dest='label_file',
-        type=labelfile_compatible_json,
-        default=LABEL_FILENAME,
-        required=False,
-        help=(
-            f'the file contains list of characters to generate image'
-            f'dataset for. Default file path to be read is '
-            f'{repr(LABEL_FILENAME)}. The file must be a JSON file '
-            'that contains an array of characters.'
-        ),
-    )
+    parser.add_argument('infile')
 
     parser.add_argument(
         '--fonts',
@@ -58,30 +40,6 @@ def main():
     )
 
     parser.add_argument(
-        '--image-size',
-        dest='image_size',
-        type=positive_int,
-        default=IMAGE_SIZE,
-        required=False,
-        help=(
-            f'The size for the image in pixel(s). Default value is '
-            f'{IMAGE_SIZE} pixel(s).'
-        ),
-    )
-
-    parser.add_argument(
-        '--font-size',
-        dest='font_size',
-        type=positive_int,
-        default=FONT_SIZE,
-        required=False,
-        help=(
-            f'The font size for rendering the characters. '
-            f'Default value is {FONT_SIZE}.'
-        )
-    )
-
-    parser.add_argument(
         '--out-dir',
         dest='out_dir',
         type=valid_filename,
@@ -94,54 +52,60 @@ def main():
     )
 
     args = parser.parse_args()
-    label_file: LabelFile = args.label_file
+    print(args)
+
+    infile = args.infile
+
+    if not os.path.exists(infile):
+        raise Exception(infile + ' does not exist!')
+
+    label_file_bs = open(infile, mode='rb').read()
+    label_file_content = label_file_bs.decode('utf-8')
+    label_file_lines = label_file_content.splitlines()
+    label_file_lines = list(filter(lambda x : len(x) > 0, label_file_lines))
+
+    # There may be multiple characters for each "class" but we only need to render the first character from the "class".
+    # "class" is refered as classification categories in the model output.
+    labels = [s[0] for s in label_file_lines]
+
     fonts_dir = args.fonts_dir
-    image_size = args.image_size
-    font_size = args.font_size
     out_dir = args.out_dir
+    image_size = 64
+    font_size = 64
 
-    dataset_dirname = os.path.splitext(label_file.source)[0]
-    dataset_dir = os.path.join(out_dir, dataset_dirname)
-    if os.path.exists(dataset_dir):
-        warn(f'dataset_dir {repr(dataset_dir)} existed!')
-        backup_filepath = backup_file_by_modified_date(dataset_dir)
-        info(f'Backup it at {repr(backup_filepath)}')
+    metadata_filepath = 'metadata.json'
+    packed_image_filepath = 'images.bin'
 
-    os.makedirs(dataset_dir)
+    if os.path.exists(metadata_filepath):
+        backup_file_by_modified_date(metadata_filepath)
 
-    serialized_dataset_filepath = os.path.join(dataset_dir, SERIALIZED_DATASET_FILENAME)
-    metadata_filepath = os.path.join(dataset_dir, METADATA_FILENAME)
+    if os.path.exists(packed_image_filepath):
+        backup_file_by_modified_date(packed_image_filepath)
 
-    if image_size < font_size:
-        warn((
-            f'You image size {image_size} may not enough to fit '
-            f'character with font size {font_size}!'
-        ))
-
-    labels = label_file.labels
-    font_list = []
+    # ===== FETCH FONTS ===== #
     info('Fetching fonts!')
-    file_list = os.listdir(fonts_dir)
-    for filename in tqdm(file_list):
+    font_list = []
+
+    font_filenames = os.listdir(fonts_dir)
+    otf_filenames = list(filter(lambda x: os.path.splitext(x)[1].lower() == '.otf', font_filenames))
+    ttf_filenames = list(filter(lambda x: os.path.splitext(x)[1].lower() == '.ttf', font_filenames))
+
+    font_filenames = [*otf_filenames, *ttf_filenames]
+
+    # ===== CHECK UNICODE CODE POINT SUPPORT OF THE FONT ===== #
+
+    pbar = tqdm(font_filenames)
+    for filename in pbar:
+        pbar.set_description(filename)
         child_path = os.path.join(fonts_dir, filename)
 
-        if not os.path.isfile(child_path):
-            warn(f'Skipping directory {child_path}!')
-            continue
+        font = fetch_font(
+            font_file=child_path,
+            font_size=font_size,
+            characters=labels,
+        )
 
-        file_ext = os.path.splitext(filename)[1]
-        file_ext = file_ext.lower()
-
-        if (file_ext == '.ttf') or (file_ext == '.otf'):
-            font = fetch_font(
-                font_file=child_path,
-                font_size=font_size,
-                characters=labels,
-            )
-            font_list.append(font)
-        else:
-            warn(f'Skipping unknown file type {child_path}!')
-            continue
+        font_list.append(font)
 
     info('Checking if fonts support all the label codepoint.')
     font_supportability_list = []
@@ -154,71 +118,35 @@ def main():
     for font_name, ns_chars in font_supportability_list:
         warn(f'{font_name}:', *ns_chars)
 
-    # DEPRECATED
-    # I will I will go with put all the images in zip files because
-    # saving hundreds of thousand images to disk gave me too much
-    # trouble to deal with them later. Removing them is a real pain
-    # that will take many hours.
+    render_tasks = list(itertools.product(labels, font_list))
 
-    # I will create a directory for each fonts and put all the images
-    # generated by that font in that directory.
-    # ------------------------------------------------------------------
+    dataset_metadata = {
+        'unsupported_combinations': [],
+        'blank_combinations': [],
+        'records': [],
+    }
 
-    # After trying to find a way to stream bytes data directly into zip
-    # entry, I cannot find any API from `zipfile` to achieve that.
-    # `zipfile` requires a physical file on disk to be feed into a zip.
-    # Writing file to a temporary location and feed it back to `zipfile`
-    # seems to cost a lot of time so I will give up on this method for
-    # now. TODO Create a zip compressor that will accept bytes as input.
-
-    # I will go with `TFRecord` this time. TFRecord is suitable for
-    # sequential access only. So afer creating a TFRecord we will not
-    # know how many records does it have. Shuffling the dataset after
-    # every training iteration does not make sense to me because I
-    # think I don't think it's possible (validate if shuffling works
-    # with TFRecord - https://stackoverflow.com/a/35658968/8364403).
-    # So we will have shuffle the dataset before creating the TFRecord.
-
-    # I intended to use zip format because we can take a look inside
-    # its data for inspection with the help of many tools. But now I
-    # decided to use TFRecord, I need to find a way to inspect the data.
-    # I am talking about hundreds of thousand of images. And if there is
-    # any defective images, I need to able to remove them easily. TODO
-
-    # import tensorflow takes a lot of time so I put it here to improve
-    # start up time
-    import tensorflow as tf
-    from tensorflow_utils import TFRSerDes
-
-    dataset_metadata = DatasetMetadata(
-        source=label_file.source,
-        content=label_file.content,
-        labels=label_file.labels,
-    )
-
-    with tf.io.TFRecordWriter(serialized_dataset_filepath) as tfrecord_writer:
-        # create task list to have progress bar with `tqdm`
-        # TODO shuffle dataset
-        # TODO split dataset to small files if it is too large (>100MB)
-        render_tasks = list(itertools.product(labels, font_list))
+    # ===== GENERATE DATASET ===== #
+    with open(packed_image_filepath, mode='wb') as outfile:
         pbar = tqdm(render_tasks)
         for c, font in pbar:
             pbar.set_description(f'{c} - {font.name}')
-
             if not c in font.supported_chars:
                 warn(f'Skipping {c} with {font.name}!')
-                dataset_metadata.unsupported_combinations.append({
+                dataset_metadata['unsupported_combinations'].append({
                     'char': c,
                     'font': font.name,
                 })
+
                 continue
 
             image = render_image(c, font, image_size)
             if image is None:
-                dataset_metadata.blank_combinations.append({
+                dataset_metadata['blank_combinations'].append({
                     'char': c,
                     'font': font.name,
                 })
+
                 continue
 
             buffer = io.BytesIO()
@@ -230,33 +158,30 @@ def main():
                 f'font size {font.size}.'
             )
 
-            ts = int(time.time())
-            hash = hash_md5(f'{desc}{ts}'.encode('utf-8'))
+            image_data_hash = hash_md5(encoded_image)
 
-            dataset_metadata.records.append({
-                'hash': hash,
+            seek_start = outfile.tell()
+            outfile.write(encoded_image)
+            seek_end = outfile.tell()
+
+            dataset_metadata['records'].append({
+                'hash': image_data_hash,
                 'char': c,
                 'font': font.name,
+                'width': image_size,
+                'height': image_size,
+                'font_size': font_size,
+                'seek_start': seek_start,
+                'seek_end': seek_end,
             })
 
-            record = TFRSerDes.serialize_record(
-                hash=hash,
-                character=c,
-                width=image_size,
-                height=image_size,
-                depth=1,
-                image=encoded_image,
-                font_size=font_size,
-                font_name=font.name,
-                description=desc,
-            )
+    with open(metadata_filepath, mode='wb') as outfile:
+        json_str = json.dumps(dataset_metadata, ensure_ascii=False, indent='\t')
+        if not json_str[-1] == '\n':
+            json_str = json_str + '\n'
 
-            tfrecord_writer.write(record)
-
-    with open(metadata_filepath, mode='w', encoding='utf-8') as outfile:
-        universal_dump(dataset_metadata.__dict__, outfile)
-
-    info(f'Created dataset at {repr(dataset_dir)}')
+        json_bs = json_str.encode('utf-8')
+        outfile.write(json_bs)
 
 
 if __name__ == "__main__":

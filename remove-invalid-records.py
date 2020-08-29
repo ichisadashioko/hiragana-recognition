@@ -16,7 +16,6 @@ import tensorflow as tf  # noqa: E402
 tf.config.experimental.set_visible_devices([], 'GPU')  # noqa: E402
 
 from constants import *
-from serializable import *
 from argtypes import *
 from logger import *
 from utils import *
