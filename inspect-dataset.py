@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # encoding=utf-8
 import os
+import time
 import json
 import collections
 from typing import Dict, List
+from datetime import datetime
 
 import tkinter as tk
 from tkinter import ttk
@@ -13,6 +15,14 @@ import PIL.Image
 import PIL.ImageTk
 
 import logger
+
+
+def logts(*args, **kwargs):
+    """print() with timestamp"""
+    ts = datetime.now().strftime('%Y-%m-%d_%H:%M:%S.%f')
+    print(logger.TermColor.FG_BRIGHT_GREEN + '[' + ts + '] ' + logger.TermColor.RESET_COLOR, end='')
+    print(*args, **kwargs)
+
 
 def main():
     metadata_filepath = 'metadata.json'
@@ -67,13 +77,23 @@ def main():
                 record['image_bytes'] = bs # TODO high memory usage
 
         app = tk.Tk()
+        app.geometry('1600x900')
 
         duplicated_entries_dropdown = ttk.Combobox(
             app,
             values=hashes_with_duplicated_images,
         )
 
+        def render_duplicated_images():
+            pass
+
+        def on_duplicated_entries_dropdown_value_selected(event: tk.Event):
+            selected_value = duplicated_entries_dropdown.get()
+            logts(selected_value)
+
         duplicated_entries_dropdown.grid(column=0, row=0)
+        duplicated_entries_dropdown.bind('<<ComboboxSelected>>', on_duplicated_entries_dropdown_value_selected)
+        duplicated_entries_dropdown.pack(fill=tk.X, expand=True)
 
         app.mainloop()
 
