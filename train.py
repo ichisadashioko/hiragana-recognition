@@ -10,6 +10,8 @@ import numpy as np
 import PIL
 import PIL.Image
 
+import tensorflow as tf
+
 def fetch_image_data(records: List[Dict], packed_image_filepath: str):
     sorted_records = [*records]
     sorted_records.sort(key=lambda record: record['seek_start'])
@@ -77,7 +79,9 @@ def main():
 
     label_to_index = {}
 
-    for i in range(len(label_list)):
+    num_outputs = len(label_list)
+
+    for i in range(num_outputs):
         label_chars = label_list[i]['label_chars']
 
         for c in label_chars:
@@ -98,6 +102,8 @@ def main():
     train_images = []
     train_labels = []
 
+    input_shape = (64, 64, 1)
+
     for record in records:
         label_char = record['char']
         image_bs: bytes = record['image_data']
@@ -108,10 +114,68 @@ def main():
         buffer = io.BytesIO(image_bs)
         pil_image = PIL.Image.open(buffer)
         np_image = np.array(pil_image, dtype=np.uint8)
+        np_image = np.reshape(np_image, input_shape)
         train_images.append(np_image)
 
-    print('len(train_images):', len(train_images))
-    print('len(train_labels):', len(train_labels))
+    train_images = np.array(train_images)
+    train_labels = np.array(train_labels)
+
+    ####################################################################
+
+    model = tf.keras.Sequential([
+        tf.keras.layers.Conv2D(
+            filters=32,
+            kernel_size=16,
+            activation=tf.keras.activations.relu,
+            input_shape=input_shape,
+            data_format='channels_last',
+        ),
+        tf.keras.layers.MaxPool2D(
+            pool_size=2,
+        ),
+        tf.keras.layers.Dropout(
+            rate=0.4,
+        ),
+        ################################################################
+        tf.keras.layers.Conv2D(
+            filters=64,
+            kernel_size=8,
+            activation=tf.keras.activations.relu,
+        ),
+        tf.keras.layers.MaxPool2D(
+            pool_size=2,
+        ),
+        ################################################################
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(
+            units=64,
+            activation=tf.keras.activations.relu,
+        ),
+        tf.keras.layers.Dense(
+            units=num_outputs,
+            activation=tf.keras.activations.relu,
+        ),
+    ])
+
+    optimizer = tf.keras.optimizers.Adam(
+        learning_rate=0.001,
+        beta_1=0.9,
+        beta_2=0.999,
+        epsilon=1e-07,
+        amsgrad=False,
+    )
+
+    loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(
+        from_logits=True,
+    )
+
+    model.compile(
+        optimizer=optimizer,
+        loss=loss_fn,
+        metrics=['accuracy'],
+    )
+
+    model.summary()
 
 if __name__ == '__main__':
     main()
