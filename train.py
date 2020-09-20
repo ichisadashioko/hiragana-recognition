@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # encoding=utf-8
 import os
+import io
 import json
 import hashlib
 from typing import Dict, List
@@ -85,9 +86,6 @@ def main():
             else:
                 label_to_index[c] = i
 
-    print(len(label_to_index.keys()))
-    return
-
     ####################################################################
 
     metadata_content = open(metadata_filepath, mode='rb').read()
@@ -97,9 +95,23 @@ def main():
     records = dataset_metadata['records']
     fetch_image_data(records, packed_image_filepath)
 
-
     train_images = []
     train_labels = []
+
+    for record in records:
+        label_char = record['char']
+        image_bs: bytes = record['image_data']
+
+        label_idx = label_to_index[label_char]
+        train_labels.append(label_idx)
+
+        buffer = io.BytesIO(image_bs)
+        pil_image = PIL.Image.open(buffer)
+        np_image = np.array(pil_image, dtype=np.uint8)
+        train_images.append(np_image)
+
+    print('len(train_images):', len(train_images))
+    print('len(train_labels):', len(train_labels))
 
 if __name__ == '__main__':
     main()
