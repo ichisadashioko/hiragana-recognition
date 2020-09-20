@@ -14,34 +14,34 @@ def dump_log(msg: str):
         outfile.write('\n')
 
 
-class TerminateColor:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
+class TermColor:
+    RESET_COLOR = '\033[0m'
+    FG_BRIGHT_RED = '\033[91m'
+    FG_BRIGHT_GREEN = '\033[92m'
+    FG_BRIGHT_YELLOW = '\033[93m'
+    FG_BRIGHT_BLUE = '\033[94m'
+    FG_BRIGHT_MAGENTA = '\033[95m'
 
 
 def info(*args, **kwargs):
     """Loging info to stdout."""
     # https://stackoverflow.com/a/287944/8364403
-    print(f'[{TerminateColor.OKGREEN}INFO{TerminateColor.ENDC}] ', end='')
+    print(f'[{TermColor.FG_BRIGHT_GREEN}INFO{TermColor.RESET_COLOR}] ', end='')
     print(*args, **kwargs)
 
 
 def warn(*args, **kwargs):
-    print(f'[{TerminateColor.WARNING}WARNING{TerminateColor.ENDC}] ', end='')
+    print(f'[{TermColor.FG_BRIGHT_YELLOW}WARN{TermColor.RESET_COLOR}] ', end='')
     print(*args, **kwargs)
 
 
 def error(*args, **kwargs):
-    print(f'[{TerminateColor.FAIL}ERROR{TerminateColor.ENDC}] ', end='')
+    print(f'[{TermColor.FG_BRIGHT_RED}ERROR{TermColor.RESET_COLOR}] ', end='')
     print(*args, **kwargs)
 
 
 def debug(*args, **kwargs):
-    print(f'[{TerminateColor.OKBLUE}DEBUG{TerminateColor.ENDC}] ', end='')
+    print(f'[{TermColor.FG_BRIGHT_BLUE}DEBUG{TermColor.RESET_COLOR}] ', end='')
     print(*args, **kwargs)
 
 

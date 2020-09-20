@@ -2,7 +2,6 @@
 # encoding=utf-8
 import os
 import io
-import time
 import argparse
 import itertools
 
@@ -69,7 +68,6 @@ def main():
     labels = [s[0] for s in label_file_lines]
 
     fonts_dir = args.fonts_dir
-    out_dir = args.out_dir
     image_size = 64
     font_size = 64
 
