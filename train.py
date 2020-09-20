@@ -113,7 +113,8 @@ def main():
 
         buffer = io.BytesIO(image_bs)
         pil_image = PIL.Image.open(buffer)
-        np_image = np.array(pil_image, dtype=np.uint8)
+        np_image = np.array(pil_image, dtype=np.float32)
+        np_image = np_image / 255.0
         np_image = np.reshape(np_image, input_shape)
         train_images.append(np_image)
 
@@ -176,6 +177,13 @@ def main():
     )
 
     model.summary()
+
+    model.fit(
+        x=train_images,
+        y=train_labels,
+        batch_size=64,
+        epochs=5,
+    )
 
 if __name__ == '__main__':
     main()
