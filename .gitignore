@@ -15,3 +15,6 @@ datasets
 *.png
 *.tsv
 *.bin
+
+# virtualenv
+venv
