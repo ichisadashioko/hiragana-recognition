@@ -52,9 +52,7 @@ def main():
     labeling_content = labeling_content.decode('utf-8')
 
     labeling_lines = labeling_content.splitlines()
-    print('len(labeling_lines) (before filtering):', len(labeling_lines))
     labeling_lines = list(filter(lambda x: len(x) > 0, labeling_lines))
-    print('len(labeling_lines) (after filtering):', len(labeling_lines))
 
     label_list = []
     for line in labeling_lines:
@@ -76,8 +74,18 @@ def main():
 
         label_list.append(label_entry)
 
-    print(len(label_list))
+    label_to_index = {}
 
+    for i in range(len(label_list)):
+        label_chars = label_list[i]['label_chars']
+
+        for c in label_chars:
+            if c in label_to_index:
+                raise Exception(f'Duplicated character {c}!')
+            else:
+                label_to_index[c] = i
+
+    print(len(label_to_index.keys()))
     return
 
     ####################################################################
