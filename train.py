@@ -75,208 +75,207 @@ class SaveModelCallBack(tf.keras.callbacks.Callback):
         self.model.save_weights(weights_filepath)
 
 
-metadata_filepath = 'metadata.json'
-packed_image_filepath = 'images.bin'
-labeling_filepath = 'japanese-characters.txt'
+if __name__ == '__main__':
+    metadata_filepath = 'metadata.json'
+    packed_image_filepath = 'images.bin'
+    labeling_filepath = 'japanese-characters.txt'
 
-if not os.path.exists(metadata_filepath):
-    raise Exception(metadata_filepath + ' does not exist!')
+    if not os.path.exists(metadata_filepath):
+        raise Exception(metadata_filepath + ' does not exist!')
 
-if not os.path.exists(packed_image_filepath):
-    raise Exception(packed_image_filepath + ' does not exist!')
+    if not os.path.exists(packed_image_filepath):
+        raise Exception(packed_image_filepath + ' does not exist!')
 
-if not os.path.exists(labeling_filepath):
-    raise Exception(labeling_filepath + ' does not exist!')
+    if not os.path.exists(labeling_filepath):
+        raise Exception(labeling_filepath + ' does not exist!')
 
-####################################################################
+    ####################################################################
 
-labeling_content = open(labeling_filepath, mode='rb').read()
+    labeling_content = open(labeling_filepath, mode='rb').read()
 
-# hash label file for identifying if the trained model is compatible with a specific label file
-label_file_hash = hashlib.sha256(labeling_content).hexdigest()
+    # hash label file for identifying if the trained model is compatible with a specific label file
+    label_file_hash = hashlib.sha256(labeling_content).hexdigest()
 
-labeling_content = labeling_content.decode('utf-8')
+    labeling_content = labeling_content.decode('utf-8')
 
-labeling_lines = labeling_content.splitlines()
-labeling_lines = list(filter(lambda x: len(x) > 0, labeling_lines))
+    labeling_lines = labeling_content.splitlines()
+    labeling_lines = list(filter(lambda x: len(x) > 0, labeling_lines))
 
-label_list = []
-for line in labeling_lines:
-    rows = line.split('\t')
-    if len(rows) > 1:
-        main_label_chars = rows[0]
-        sub_label_chars = rows[1]
-        label_chars = main_label_chars + sub_label_chars
-    else:
-        main_label_chars = rows[0]
-        sub_label_chars = ''
-        label_chars = main_label_chars
-
-    label_entry = {
-        'label_chars': label_chars,
-        'main_label_chars': main_label_chars,
-        'sub_label_chars': sub_label_chars,
-    }
-
-    label_list.append(label_entry)
-
-label_to_index = {}
-
-num_outputs = len(label_list)
-
-for i in range(num_outputs):
-    label_chars = label_list[i]['label_chars']
-
-    for c in label_chars:
-        if c in label_to_index:
-            raise Exception(f'Duplicated character {c}!')
+    label_list = []
+    for line in labeling_lines:
+        rows = line.split('\t')
+        if len(rows) > 1:
+            main_label_chars = rows[0]
+            sub_label_chars = rows[1]
+            label_chars = main_label_chars + sub_label_chars
         else:
-            label_to_index[c] = i
+            main_label_chars = rows[0]
+            sub_label_chars = ''
+            label_chars = main_label_chars
 
-####################################################################
+        label_entry = {
+            'label_chars': label_chars,
+            'main_label_chars': main_label_chars,
+            'sub_label_chars': sub_label_chars,
+        }
 
-metadata_content = open(metadata_filepath, mode='rb').read()
-metadata_content = metadata_content.decode('utf-8')
+        label_list.append(label_entry)
 
-dataset_metadata: Dict[str, List[dict]] = json.loads(metadata_content)
-records = dataset_metadata['records']
-fetch_image_data(records, packed_image_filepath)
+    label_to_index = {}
 
-train_images = []
-train_labels = []
+    num_outputs = len(label_list)
 
-input_shape = (64, 64, 1)
+    for i in range(num_outputs):
+        label_chars = label_list[i]['label_chars']
 
-for record in records:
-    label_char = record['char']
-    image_bs: bytes = record['image_data']
+        for c in label_chars:
+            if c in label_to_index:
+                raise Exception(f'Duplicated character {c}!')
+            else:
+                label_to_index[c] = i
 
-    label_idx = label_to_index[label_char]
-    train_labels.append(label_idx)
+    ####################################################################
 
-    buffer = io.BytesIO(image_bs)
-    pil_image = PIL.Image.open(buffer)
-    np_image = np.array(pil_image, dtype=np.float32)
-    np_image = np_image / 255.0
-    np_image = np.reshape(np_image, input_shape)
-    train_images.append(np_image)
+    metadata_content = open(metadata_filepath, mode='rb').read()
+    metadata_content = metadata_content.decode('utf-8')
 
-train_images = np.array(train_images)
-train_labels = np.array(train_labels)
+    dataset_metadata: Dict[str, List[dict]] = json.loads(metadata_content)
+    records = dataset_metadata['records']
+    fetch_image_data(records, packed_image_filepath)
 
-####################################################################
+    train_images = []
+    train_labels = []
 
-model = tf.keras.Sequential([
-    tf.keras.layers.Conv2D(
-        filters=32,
-        kernel_size=16,
-        activation=tf.keras.activations.relu,
-        input_shape=input_shape,
-        data_format='channels_last',
-    ),
-    tf.keras.layers.MaxPool2D(
-        pool_size=2,
-    ),
-    tf.keras.layers.Dropout(
-        rate=0.4,
-    ),
-    ################################################################
-    tf.keras.layers.Conv2D(
-        filters=64,
-        kernel_size=8,
-        activation=tf.keras.activations.relu,
-    ),
-    tf.keras.layers.MaxPool2D(
-        pool_size=2,
-    ),
-    ################################################################
-    tf.keras.layers.Flatten(),
-    tf.keras.layers.Dense(
-        units=64,
-        activation=tf.keras.activations.relu,
-    ),
-    tf.keras.layers.Dense(
-        units=num_outputs,
-        activation=tf.keras.activations.relu,
-    ),
-])
+    input_shape = (64, 64, 1)
 
-optimizer = tf.keras.optimizers.Adam(
-    learning_rate=0.001,
-    beta_1=0.9,
-    beta_2=0.999,
-    epsilon=1e-07,
-    amsgrad=False,
-)
+    for record in records:
+        label_char = record['char']
+        image_bs: bytes = record['image_data']
 
-loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(
-    from_logits=True,
-)
+        label_idx = label_to_index[label_char]
+        train_labels.append(label_idx)
 
-model.compile(
-    optimizer=optimizer,
-    loss=loss_fn,
-    metrics=['accuracy'],
-)
+        buffer = io.BytesIO(image_bs)
+        pil_image = PIL.Image.open(buffer)
+        np_image = np.array(pil_image, dtype=np.float32)
+        np_image = np_image / 255.0
+        np_image = np.reshape(np_image, input_shape)
+        train_images.append(np_image)
 
-model.summary()
+    train_images = np.array(train_images)
+    train_labels = np.array(train_labels)
 
-log_dir = os.path.join('tensorboard_logs', current_dt())
-tensorboard_callback = tf.keras.callbacks.TensorBoard(
-    log_dir=log_dir,
-    histogram_freq=1,
-)
+    ####################################################################
 
-save_movel_cb = SaveModelCallBack()
+    model = tf.keras.Sequential([
+        tf.keras.layers.Conv2D(
+            filters=32,
+            kernel_size=16,
+            activation=tf.keras.activations.relu,
+            input_shape=input_shape,
+            data_format='channels_last',
+        ),
+        tf.keras.layers.MaxPool2D(
+            pool_size=2,
+        ),
+        tf.keras.layers.Dropout(
+            rate=0.4,
+        ),
+        ################################################################
+        tf.keras.layers.Conv2D(
+            filters=64,
+            kernel_size=8,
+            activation=tf.keras.activations.relu,
+        ),
+        tf.keras.layers.MaxPool2D(
+            pool_size=2,
+        ),
+        ################################################################
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(
+            units=64,
+            activation=tf.keras.activations.relu,
+        ),
+        tf.keras.layers.Dense(
+            units=num_outputs,
+            activation=tf.keras.activations.relu,
+        ),
+    ])
 
-model_save_dir = save_movel_cb.save_dir
+    optimizer = tf.keras.optimizers.Adam(
+        learning_rate=0.001,
+        beta_1=0.9,
+        beta_2=0.999,
+        epsilon=1e-07,
+        amsgrad=False,
+    )
 
-if not os.path.exists(model_save_dir):
-    os.makedirs(model_save_dir)
+    loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(
+        from_logits=True,
+    )
 
-model_filename = f'initial_model-{current_ts}.h5'
-model_filepath = os.path.join(model_save_dir, model_filename)
-model.save(model_filepath)
+    model.compile(
+        optimizer=optimizer,
+        loss=loss_fn,
+        metrics=['accuracy'],
+    )
 
-num_epoches_per_iteration = 20
-trained_epoches = 0
-stop_training_flag = False
+    model.summary()
 
+    log_dir = os.path.join('tensorboard_logs', current_dt())
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(
+        log_dir=log_dir,
+        histogram_freq=1,
+    )
 
-def train_model_thread_fn():
-    global trained_epoches, stop_training_flag
+    save_movel_cb = SaveModelCallBack()
 
-    while not stop_training_flag:
-        model.fit(
-            x=train_images,
-            y=train_labels,
-            batch_size=64,
-            epochs=num_epoches_per_iteration,
-            callbacks=[tensorboard_callback, save_movel_cb],
-        )
+    model_save_dir = save_movel_cb.save_dir
 
-        trained_epoches += num_epoches_per_iteration
-        save_movel_cb.trained_epoches = trained_epoches
+    if not os.path.exists(model_save_dir):
+        os.makedirs(model_save_dir)
 
-        model_filename = f'model-{current_ts}-epoch_{trained_epoches}.h5'
-        model_filepath = os.path.join(model_save_dir, model_filename)
-        model.save(model_filepath)
+    model_filename = f'initial_model-{current_ts()}.h5'
+    model_filepath = os.path.join(model_save_dir, model_filename)
+    model.save(model_filepath)
 
-        print('\nNumber of trained epoches:', trained_epoches)
+    num_epoches_per_iteration = 20
+    trained_epoches = 0
+    stop_training_flag = False
 
+    def train_model_thread_fn():
+        global trained_epoches, stop_training_flag
 
-train_thread = threading.Thread(target=train_model_thread_fn)
-train_thread.start()
+        while not stop_training_flag:
+            model.fit(
+                x=train_images,
+                y=train_labels,
+                batch_size=64,
+                epochs=num_epoches_per_iteration,
+                callbacks=[tensorboard_callback, save_movel_cb],
+            )
 
-while True:
-    input_str = input('Enter "q" or "Q" to stop training: ')
-    if 'q' in input_str.lower():
-        stop_training_flag = True
-        break
+            trained_epoches += num_epoches_per_iteration
+            save_movel_cb.trained_epoches = trained_epoches
 
-print('\nWaiting for the training thread to finish\n', flush=True)
-train_thread.join()
+            model_filename = f'model-{current_ts()}-epoch_{trained_epoches}.h5'
+            model_filepath = os.path.join(model_save_dir, model_filename)
+            model.save(model_filepath)
 
-model_filename = f'finished_training_model-{current_ts}-epoch_{trained_epoches}.h5'
-model_filepath = os.path.join(model_save_dir, model_filename)
-model.save(model_filepath)
+            print('\nNumber of trained epoches:', trained_epoches)
+
+    train_thread = threading.Thread(target=train_model_thread_fn)
+    train_thread.start()
+
+    while True:
+        input_str = input('Enter "q" or "Q" to stop training: ')
+        if 'q' in input_str.lower():
+            stop_training_flag = True
+            break
+
+    print('\nWaiting for the training thread to finish\n', flush=True)
+    train_thread.join()
+
+    model_filename = f'finished_training_model-{current_ts}-epoch_{trained_epoches}.h5'
+    model_filepath = os.path.join(model_save_dir, model_filename)
+    model.save(model_filepath)
