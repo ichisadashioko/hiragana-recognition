@@ -15,6 +15,7 @@ datasets
 *.png
 *.tsv
 *.bin
+tensorboard_logs
 
 # virtualenv
 venv

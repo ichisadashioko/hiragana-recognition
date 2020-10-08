@@ -4,6 +4,7 @@ import os
 import io
 import json
 import hashlib
+import datetime
 from typing import Dict, List
 
 import numpy as np
@@ -178,11 +179,18 @@ def main():
 
     model.summary()
 
+    log_dir = f'tensorboard_logs/{label_file_hash}/' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(
+        log_dir=log_dir,
+        histogram_freq=1,
+    )
+
     model.fit(
         x=train_images,
         y=train_labels,
         batch_size=64,
-        epochs=5,
+        epochs=500,
+        callbacks=[tensorboard_callback],
     )
 
 if __name__ == '__main__':
