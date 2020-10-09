@@ -5,7 +5,6 @@ import io
 import json
 import hashlib
 import datetime
-import threading
 from typing import Dict, List
 
 import numpy as np
@@ -94,6 +93,7 @@ if __name__ == '__main__':
     labeling_content = open(labeling_filepath, mode='rb').read()
 
     # hash label file for identifying if the trained model is compatible with a specific label file
+    # TODO remove this
     label_file_hash = hashlib.sha256(labeling_content).hexdigest()
 
     labeling_content = labeling_content.decode('utf-8')
@@ -167,38 +167,64 @@ if __name__ == '__main__':
 
     ####################################################################
 
-    model = tf.keras.Sequential([
+    model = tf.keras.Sequential(layers=[
         tf.keras.layers.Conv2D(
+            name='conv2d_num_01',
             filters=32,
-            kernel_size=16,
-            activation=tf.keras.activations.relu,
+            kernel_size=5,
+            activation='relu',
             input_shape=input_shape,
             data_format='channels_last',
         ),
         tf.keras.layers.MaxPool2D(
+            name='maxpool2d_num_01',
             pool_size=2,
         ),
         tf.keras.layers.Dropout(
+            name='dropout_num_01',
             rate=0.4,
         ),
         ################################################################
         tf.keras.layers.Conv2D(
-            filters=64,
-            kernel_size=8,
-            activation=tf.keras.activations.relu,
+            name='conv2d_num_02',
+            filters=32,
+            kernel_size=5,
+            activation='relu',
         ),
         tf.keras.layers.MaxPool2D(
+            name='maxpool2d_num_02',
             pool_size=2,
         ),
+        tf.keras.layers.Dropout(
+            name='dropout_num_02',
+            rate=0.4,
+        ),
         ################################################################
-        tf.keras.layers.Flatten(),
+        tf.keras.layers.Conv2D(
+            name='conv2d_num_03',
+            filters=64,
+            kernel_size=5,
+            activation='relu',
+        ),
+        tf.keras.layers.MaxPool2D(
+            name='maxpool2d_num_03',
+            pool_size=2,
+        ),
+        tf.keras.layers.Dropout(
+            name='dropout_num_03',
+            rate=0.4,
+        ),
+        ################################################################
+        tf.keras.layers.Flatten(name='flatten_num_01'),
         tf.keras.layers.Dense(
-            units=64,
-            activation=tf.keras.activations.relu,
+            name='dense_num_01',
+            units=256,
+            activation='relu',
         ),
         tf.keras.layers.Dense(
+            name='dense_num_02_outputs',
             units=num_outputs,
-            activation=tf.keras.activations.relu,
+            activation='softmax',
         ),
     ])
 
@@ -241,40 +267,30 @@ if __name__ == '__main__':
 
     num_epoches_per_iteration = 20
     trained_epoches = 0
-    stop_training_flag = False
-
-    def train_model_thread_fn():
-        global trained_epoches, stop_training_flag
-
-        while not stop_training_flag:
-            model.fit(
-                x=train_images,
-                y=train_labels,
-                batch_size=64,
-                epochs=num_epoches_per_iteration,
-                callbacks=[tensorboard_callback, save_movel_cb],
-            )
-
-            trained_epoches += num_epoches_per_iteration
-            save_movel_cb.trained_epoches = trained_epoches
-
-            model_filename = f'model-{current_ts()}-epoch_{trained_epoches}.h5'
-            model_filepath = os.path.join(model_save_dir, model_filename)
-            model.save(model_filepath)
-
-            print('\nNumber of trained epoches:', trained_epoches)
-
-    train_thread = threading.Thread(target=train_model_thread_fn)
-    train_thread.start()
 
     while True:
+        model.fit(
+            x=train_images,
+            y=train_labels,
+            batch_size=64,
+            shuffle=True,
+            epochs=num_epoches_per_iteration,
+            callbacks=[tensorboard_callback, save_movel_cb],
+        )
+
+        trained_epoches += num_epoches_per_iteration
+        save_movel_cb.trained_epoches = trained_epoches
+
+        model_filename = f'model-{current_ts()}-epoch_{trained_epoches}.h5'
+        model_filepath = os.path.join(model_save_dir, model_filename)
+        model.save(model_filepath)
+
+        print('\nNumber of trained epoches:', trained_epoches)
+
         input_str = input('Enter "q" or "Q" to stop training: ')
         if 'q' in input_str.lower():
             stop_training_flag = True
             break
-
-    print('\nWaiting for the training thread to finish\n', flush=True)
-    train_thread.join()
 
     model_filename = f'finished_training_model-{current_ts}-epoch_{trained_epoches}.h5'
     model_filepath = os.path.join(model_save_dir, model_filename)
